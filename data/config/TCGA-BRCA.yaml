@@ -1,0 +1,37 @@
+# Root directory
+root_dir: data/TCGA-BRCA
+
+# --- Parameters for downloading TCGA data from GDC ---
+# Original manifest files names (in folder <root_dir>/manifests/raw)
+manifests_raw: [gdc_manifest.2026-01-12.144408.txt]
+
+# Manually specify manifest file for downloading TCGA data, if wanted
+# Either enter a list of manifest file(s) manually (in folder <root_dir>/manifests/ready_for_download),
+# or False (use the output of the pipeline)
+manifests_for_download: False
+
+# Maximum number of files for each gdc client command
+n_files_per_command: 200
+
+# Optional TCGA user token for restricted access files
+# Include secured file path with TCGA user token
+# False: no TCGA user token if none is available or necessary
+tcga_user_token_file: False
+
+# Validate existing files in raw_data before marking UUIDs as downloaded.
+# Size check is fast and catches zero-byte files.
+# MD5 check is strongest but much slower for large cohorts.
+validate_file_size: True
+validate_file_md5: False
+
+# Number of parallel processes for downloading files with gdc client (if using multiple manifest files)
+n_processes: 8
+
+# --- Parameters for extracting SBS labels ---
+min_count: 3
+min_proportion: 0.1
+top_k_signatures: 5
+
+# --- Parameters for downloading BCSS dataset ---
+bcss_mpp: 0.25
+bcss_pipelines: [images, masks, annotations]
