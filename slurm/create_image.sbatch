@@ -10,8 +10,8 @@
 set -eu
 
 REPO="/tudelft.net/staff-umbrella/IMGEN"
-DEF="$REPO/containers/vexdr.def"
-IMG="$REPO/containers/vexdr.sif"
+DEF="$REPO/containers/augur.def"
+IMG="$REPO/containers/augur.sif"
 
 # DAIC: use node-local /tmp for temporary data and clean it up
 tmpdir="/tmp/${USER}/${SLURM_JOBID}"

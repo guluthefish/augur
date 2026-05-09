@@ -6,10 +6,10 @@ from typing import Any
 
 import torch
 
-from VexDR.datasets.tcga_slide_dataset import TCGASlideDataset
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.slide_level.attention import Attention, GatedAttention
-from VexDR.models.slide_level.mil import EmbeddingMIL, _MaxPool, _MeanPool
+from augur.datasets.tcga_slide_dataset import TCGASlideDataset
+from augur.models.model_abc import ModelABC
+from augur.models.slide_level.attention import Attention, GatedAttention
+from augur.models.slide_level.mil import EmbeddingMIL, _MaxPool, _MeanPool
 
 
 class _TinyTileEncoder(ModelABC):
@@ -92,15 +92,15 @@ def _assert_real_slide_batch(
 ) -> None:
     """Validate the real data batch contract consumed by EmbeddingMIL."""
     expected_keys = {"image", "mask", "target", "metadata"}
-    assert (
-        set(batch.keys()) == expected_keys
-    ), f"Expected real slide batch keys {expected_keys}. Got: {set(batch.keys())}."
+    assert set(batch.keys()) == expected_keys, (
+        f"Expected real slide batch keys {expected_keys}. Got: {set(batch.keys())}."
+    )
 
     image = batch["image"]
     target = batch["target"]
-    assert isinstance(
-        image, torch.Tensor
-    ), f"Expected image tensor. Got: {type(image)}."
+    assert isinstance(image, torch.Tensor), (
+        f"Expected image tensor. Got: {type(image)}."
+    )
     K = image.shape[1]
     assert K >= 1, "Each slide bag should contain at least one tile."
     assert image.shape[2:] == (
@@ -108,22 +108,22 @@ def _assert_real_slide_batch(
         datamodule.image_size,
         datamodule.image_size,
     ), f"Unexpected real slide image shape: {image.shape}."
-    assert torch.all(
-        (image >= 0) & (image <= 1)
-    ), "Real tile values should be in [0, 1]."
+    assert torch.all((image >= 0) & (image <= 1)), (
+        "Real tile values should be in [0, 1]."
+    )
 
-    assert isinstance(
-        target, torch.Tensor
-    ), f"Expected target tensor. Got: {type(target)}."
+    assert isinstance(target, torch.Tensor), (
+        f"Expected target tensor. Got: {type(target)}."
+    )
     assert target.shape == (image.shape[0],), (
         f"Subtyping target should be a (B,) long tensor. Got: {target.shape}."
     )
-    assert (
-        target.dtype == torch.long
-    ), f"Subtyping target should be long. Got: {target.dtype}."
-    assert torch.all(
-        (target >= 0) & (target < datamodule.num_main_labels)
-    ), "Subtyping class indices must lie in [0, num_main_labels)."
+    assert target.dtype == torch.long, (
+        f"Subtyping target should be long. Got: {target.dtype}."
+    )
+    assert torch.all((target >= 0) & (target < datamodule.num_main_labels)), (
+        "Subtyping class indices must lie in [0, num_main_labels)."
+    )
 
 
 def _build_mil_model(
@@ -180,12 +180,12 @@ def _assert_common_mil_outputs(
     assert torch.isfinite(loss), "MIL loss should be finite."
 
     assert isinstance(metrics, dict), f"Expected metrics dict. Got: {type(metrics)}."
-    assert set(metrics.keys()) == {
-        "subtyping_loss"
-    }, f"Expected subtyping_loss metric. Got: {set(metrics.keys())}."
-    assert torch.isfinite(
-        metrics["subtyping_loss"]
-    ), "Subtyping loss metric should be finite."
+    assert set(metrics.keys()) == {"subtyping_loss"}, (
+        f"Expected subtyping_loss metric. Got: {set(metrics.keys())}."
+    )
+    assert torch.isfinite(metrics["subtyping_loss"]), (
+        "Subtyping loss metric should be finite."
+    )
     return outputs
 
 
@@ -205,9 +205,9 @@ def _test_real_data_max_and_mean_aggregation() -> None:
             outputs = _assert_common_mil_outputs(
                 model, batch, num_classes=datamodule.num_main_labels
             )
-            assert (
-                outputs["_attention_weights"] is None
-            ), f"{aggregation_method} aggregation should not return attention weights."
+            assert outputs["_attention_weights"] is None, (
+                f"{aggregation_method} aggregation should not return attention weights."
+            )
 
             features = _encode_expected_features(model.encoder, batch["image"])  # type: ignore[arg-type]
             expected_aggregated = (
@@ -219,7 +219,9 @@ def _test_real_data_max_and_mean_aggregation() -> None:
                 outputs["_aggregated"],
                 expected_aggregated,
                 atol=1e-6,
-            ), f"{aggregation_method} aggregation should match encoded real tile features."
+            ), (
+                f"{aggregation_method} aggregation should match encoded real tile features."
+            )
     finally:
         datamodule.teardown()
 
@@ -264,7 +266,9 @@ def _test_real_data_attention_aggregation() -> None:
             outputs["_aggregated"],
             expected_aggregated,
             atol=1e-6,
-        ), "Attention aggregation should match the weighted sum of encoded real tile features."
+        ), (
+            "Attention aggregation should match the weighted sum of encoded real tile features."
+        )
     finally:
         datamodule.teardown()
 
@@ -287,12 +291,12 @@ def _test_from_config() -> None:
     assert mean_model.aggregation_method == "mean"
     assert not mean_model.has_encoder, "No tile_model implies encoder-less model."
     assert isinstance(mean_model.aggregator, _MeanPool)
-    assert (
-        mean_model.main_task == "subtyping"
-    ), "main_task should default to 'subtyping' when omitted from config."
-    assert (
-        mean_model.unknown_class_index == 0
-    ), "unknown_class_index should default to 0."
+    assert mean_model.main_task == "subtyping", (
+        "main_task should default to 'subtyping' when omitted from config."
+    )
+    assert mean_model.unknown_class_index == 0, (
+        "unknown_class_index should default to 0."
+    )
 
     mean_model.eval()
     bag = torch.randn(2, 4, 8)
@@ -313,9 +317,9 @@ def _test_from_config() -> None:
         }
     )
     assert isinstance(max_model.aggregator, _MaxPool)
-    assert (
-        max_model.unknown_class_index is None
-    ), "task_kwargs['subtyping']['unknown_class_index']=None should disable ignore-index."
+    assert max_model.unknown_class_index is None, (
+        "task_kwargs['subtyping']['unknown_class_index']=None should disable ignore-index."
+    )
     assert max_model.task_kwargs == {"subtyping": {"unknown_class_index": None}}
     max_model.eval()
     with torch.no_grad():
@@ -347,23 +351,23 @@ def _test_from_config() -> None:
     }
     attn_model = EmbeddingMIL.from_config(attn_config)
     assert attn_model.aggregation_method == "attention"
-    assert isinstance(
-        attn_model.aggregator, GatedAttention
-    ), "gated=True should instantiate GatedAttention."
+    assert isinstance(attn_model.aggregator, GatedAttention), (
+        "gated=True should instantiate GatedAttention."
+    )
     assert attn_model.attn_gated is True
     assert attn_model.aggregator.num_heads == 2
     assert attn_model.aggregator.hidden_dim == 8
 
-    assert (
-        attn_model.optimizer_factory is torch.optim.AdamW
-    ), f"Expected AdamW optimizer factory. Got: {attn_model.optimizer_factory}."
+    assert attn_model.optimizer_factory is torch.optim.AdamW, (
+        f"Expected AdamW optimizer factory. Got: {attn_model.optimizer_factory}."
+    )
     assert attn_model.optimizer_kwargs == {
         "lr": 5e-4,
         "weight_decay": 0.01,
     }, f"Expected AdamW kwargs from config. Got: {attn_model.optimizer_kwargs}."
-    assert (
-        attn_model.lr_scheduler_factory is torch.optim.lr_scheduler.StepLR
-    ), f"Expected StepLR scheduler factory. Got: {attn_model.lr_scheduler_factory}."
+    assert attn_model.lr_scheduler_factory is torch.optim.lr_scheduler.StepLR, (
+        f"Expected StepLR scheduler factory. Got: {attn_model.lr_scheduler_factory}."
+    )
     assert attn_model.lr_scheduler_kwargs == {"step_size": 3, "gamma": 0.5}
     assert attn_model.lr_scheduler_config == {"interval": "epoch", "frequency": 1}
 

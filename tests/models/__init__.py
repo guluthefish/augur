@@ -1,4 +1,4 @@
-""" "Unit tests for VexDR models."""
+""" "Unit tests for Augur models."""
 
 from .model_abc import test_all_models_model_abc
 from .slide_level import test_all_models_slide_level

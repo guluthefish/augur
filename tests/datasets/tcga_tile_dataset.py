@@ -4,8 +4,8 @@ import os
 
 import torch
 
-from VexDR.datasets.tcga_tile_dataset import TCGATileDataset, _TileDataset
-from VexDR.datasets.utils import (
+from augur.datasets.tcga_tile_dataset import TCGATileDataset, _TileDataset
+from augur.datasets.utils import (
     derive_bcss_slide_name,
     load_slide_records,
     resolve_manifest_path,
@@ -34,9 +34,9 @@ def _test_TileDataset():
         if derive_bcss_slide_name(s.slide_path) == test_slide_name:
             test_slide_record = s
             break
-    assert (
-        test_slide_record is not None
-    ), f"No slide record found for slide_name {test_slide_name}"
+    assert test_slide_record is not None, (
+        f"No slide record found for slide_name {test_slide_name}"
+    )
 
     roi_name = derive_bcss_slide_name(test_slide_record.slide_id)
     xmin, ymin, xmax, ymax = 45749, 25055, 49789, 27991
@@ -81,9 +81,9 @@ def _test_TileDataset():
         tissue_segmentation_n_classes=22,
     )
 
-    assert len(tile_dataset) == len(
-        tile_records
-    ), f"Expected dataset length {len(tile_records)}. Got: {len(tile_dataset)}"
+    assert len(tile_dataset) == len(tile_records), (
+        f"Expected dataset length {len(tile_records)}. Got: {len(tile_dataset)}"
+    )
 
     sample_item = tile_dataset[0]
 
@@ -95,9 +95,9 @@ def _test_TileDataset():
         "jigmag",
     }
 
-    assert (
-        set(sample_item.keys()) == expected_keys
-    ), f"Expected keys {expected_keys}. Got: {set(sample_item.keys())}"
+    assert set(sample_item.keys()) == expected_keys, (
+        f"Expected keys {expected_keys}. Got: {set(sample_item.keys())}"
+    )
 
     # Check that metadata contains expected keys and values
     metadata = sample_item["metadata"]
@@ -133,67 +133,73 @@ def _test_TileDataset():
     assert (
         set(metadata.keys()) == expected_keys
         or set(metadata.keys()) == extra_expected_keys
-    ), f"Expected metadata keys {expected_keys} or {extra_expected_keys}. Got: {set(metadata.keys())}"
-    assert (
-        metadata["slide_id"] == tile_records[0].slide_id
-    ), f"Expected slide_id {tile_records[0].slide_id}. Got: {metadata['slide_id']}"
-    assert (
-        metadata["submitter_id"] == tile_records[0].submitter_id
-    ), f"Expected submitter_id {tile_records[0].submitter_id}. Got: {metadata['submitter_id']}"
-    assert (
-        metadata["x"] == tile_records[0].x
-    ), f"Expected x {tile_records[0].x}. Got: {metadata['x']}"
-    assert (
-        metadata["y"] == tile_records[0].y
-    ), f"Expected y {tile_records[0].y}. Got: {metadata['y']}"
-    assert (
-        metadata["level"] == tile_records[0].level
-    ), f"Expected level {tile_records[0].level}. Got: {metadata['level']}"
-    assert (
-        metadata["size"] == tile_records[0].size
-    ), f"Expected size {tile_records[0].size}. Got: {metadata['size']}."
-    assert (
-        metadata["base_mpp"] == 0.25
-    ), f"Expected base_mpp 0.25. Got: {metadata['base_mpp']}"
+    ), (
+        f"Expected metadata keys {expected_keys} or {extra_expected_keys}. Got: {set(metadata.keys())}"
+    )
+    assert metadata["slide_id"] == tile_records[0].slide_id, (
+        f"Expected slide_id {tile_records[0].slide_id}. Got: {metadata['slide_id']}"
+    )
+    assert metadata["submitter_id"] == tile_records[0].submitter_id, (
+        f"Expected submitter_id {tile_records[0].submitter_id}. Got: {metadata['submitter_id']}"
+    )
+    assert metadata["x"] == tile_records[0].x, (
+        f"Expected x {tile_records[0].x}. Got: {metadata['x']}"
+    )
+    assert metadata["y"] == tile_records[0].y, (
+        f"Expected y {tile_records[0].y}. Got: {metadata['y']}"
+    )
+    assert metadata["level"] == tile_records[0].level, (
+        f"Expected level {tile_records[0].level}. Got: {metadata['level']}"
+    )
+    assert metadata["size"] == tile_records[0].size, (
+        f"Expected size {tile_records[0].size}. Got: {metadata['size']}."
+    )
+    assert metadata["base_mpp"] == 0.25, (
+        f"Expected base_mpp 0.25. Got: {metadata['base_mpp']}"
+    )
 
     # Check that tissue segmentation task returns expected keys and types
     tissue_item = sample_item["tissue_segmentation"]
     expected_keys = {"image", "target"}
-    assert (
-        set(tissue_item.keys()) == expected_keys
-    ), f"Expected tissue_segmentation keys {expected_keys}. Got: {set(tissue_item.keys())}"
-    assert isinstance(
-        tissue_item["image"], torch.Tensor
-    ), f"Tissue segmentation image should be a torch tensor. Got: {type(tissue_item['image'])}"
+    assert set(tissue_item.keys()) == expected_keys, (
+        f"Expected tissue_segmentation keys {expected_keys}. Got: {set(tissue_item.keys())}"
+    )
+    assert isinstance(tissue_item["image"], torch.Tensor), (
+        f"Tissue segmentation image should be a torch tensor. Got: {type(tissue_item['image'])}"
+    )
     assert tissue_item["image"].shape == (
         3,
         tile_dataset.image_size,
         tile_dataset.image_size,
-    ), f"Tissue segmentation image should have shape (3, {tile_dataset.image_size}, {tile_dataset.image_size}). Got: {tissue_item['image'].shape}"
-    assert torch.all(
-        (tissue_item["image"] >= 0) & (tissue_item["image"] <= 1)
-    ), "Tissue segmentation image values should be in the range [0, 1]"
-    assert isinstance(
-        tissue_item["target"], torch.Tensor
-    ), f"Tissue segmentation target should be a torch tensor. Got: {type(tissue_item['target'])}"
+    ), (
+        f"Tissue segmentation image should have shape (3, {tile_dataset.image_size}, {tile_dataset.image_size}). Got: {tissue_item['image'].shape}"
+    )
+    assert torch.all((tissue_item["image"] >= 0) & (tissue_item["image"] <= 1)), (
+        "Tissue segmentation image values should be in the range [0, 1]"
+    )
+    assert isinstance(tissue_item["target"], torch.Tensor), (
+        f"Tissue segmentation target should be a torch tensor. Got: {type(tissue_item['target'])}"
+    )
     assert tissue_item["target"].shape == (
         22,
         tile_dataset.image_size,
         tile_dataset.image_size,
-    ), f"Tissue segmentation target should have shape (22, {tile_dataset.image_size}, {tile_dataset.image_size}). Got: {tissue_item['target'].shape}"
-    assert torch.all(
-        (tissue_item["target"] >= 0) & (tissue_item["target"] <= 1)
-    ), "Tissue segmentation target should be a binary tensor with values 0 or 1."
+    ), (
+        f"Tissue segmentation target should have shape (22, {tile_dataset.image_size}, {tile_dataset.image_size}). Got: {tissue_item['target'].shape}"
+    )
+    assert torch.all((tissue_item["target"] >= 0) & (tissue_item["target"] <= 1)), (
+        "Tissue segmentation target should be a binary tensor with values 0 or 1."
+    )
 
     # Check that magnification task returns expected keys and types
     magnification_item = sample_item["magnification"]
     expected_keys = {"image", "target", "target_mpp", "mpp_candidates"}
-    assert (
-        set(magnification_item.keys()) == expected_keys
-    ), f"Expected magnification keys {expected_keys}. Got: {set(magnification_item.keys())}"
-    assert isinstance(
-        magnification_item["image"], torch.Tensor
-    ), f"Magnification image should be a torch tensor. Got: {type(magnification_item['image'])}"
+    assert set(magnification_item.keys()) == expected_keys, (
+        f"Expected magnification keys {expected_keys}. Got: {set(magnification_item.keys())}"
+    )
+    assert isinstance(magnification_item["image"], torch.Tensor), (
+        f"Magnification image should be a torch tensor. Got: {type(magnification_item['image'])}"
+    )
     assert torch.all(
         (magnification_item["image"] >= 0) & (magnification_item["image"] <= 1)
     ), "Magnification image values should be in the range [0, 1]"
@@ -201,43 +207,51 @@ def _test_TileDataset():
         3,
         tile_dataset.image_size,
         tile_dataset.image_size,
-    ), f"Magnification image should have shape (3, {tile_dataset.image_size}, {tile_dataset.image_size}). Got: {magnification_item['image'].shape}"
-    assert isinstance(
-        magnification_item["target"], torch.Tensor
-    ), f"Magnification target should be a torch tensor. Got: {type(magnification_item['target'])}"
+    ), (
+        f"Magnification image should have shape (3, {tile_dataset.image_size}, {tile_dataset.image_size}). Got: {magnification_item['image'].shape}"
+    )
+    assert isinstance(magnification_item["target"], torch.Tensor), (
+        f"Magnification target should be a torch tensor. Got: {type(magnification_item['target'])}"
+    )
     assert magnification_item["target"].shape == (
         len(magnification_item["mpp_candidates"]),
-    ), f"Magnification target should have shape {(len(magnification_item['mpp_candidates']),)}. Got: {magnification_item['target'].shape}"
+    ), (
+        f"Magnification target should have shape {(len(magnification_item['mpp_candidates']),)}. Got: {magnification_item['target'].shape}"
+    )
     assert (
         torch.all(
             (magnification_item["target"] == 0) | (magnification_item["target"] == 1)
         )
         and torch.sum(magnification_item["target"]) == 1
-    ), "Magnification target should be a one-hot tensor with exactly one element equal to 1 and the rest equal to 0."
-    assert isinstance(
-        magnification_item["target_mpp"], torch.Tensor
-    ), f"Magnification target_mpp should be a torch tensor. Got: {type(magnification_item['target_mpp'])}"
-    assert (
-        magnification_item["target_mpp"] in magnification_item["mpp_candidates"]
-    ), "Magnification target_mpp should be one of the candidates."
-    assert isinstance(
-        magnification_item["mpp_candidates"], torch.Tensor
-    ), f"Magnification mpp_candidates should be a torch tensor. Got: {type(magnification_item['mpp_candidates'])}"
+    ), (
+        "Magnification target should be a one-hot tensor with exactly one element equal to 1 and the rest equal to 0."
+    )
+    assert isinstance(magnification_item["target_mpp"], torch.Tensor), (
+        f"Magnification target_mpp should be a torch tensor. Got: {type(magnification_item['target_mpp'])}"
+    )
+    assert magnification_item["target_mpp"] in magnification_item["mpp_candidates"], (
+        "Magnification target_mpp should be one of the candidates."
+    )
+    assert isinstance(magnification_item["mpp_candidates"], torch.Tensor), (
+        f"Magnification mpp_candidates should be a torch tensor. Got: {type(magnification_item['mpp_candidates'])}"
+    )
 
     # Check that hematoxylin task returns expected keys and types
     hematoxylin_item = sample_item["hematoxylin"]
     expected_keys = {"image", "target"}
-    assert (
-        set(hematoxylin_item.keys()) == expected_keys
-    ), f"Expected hematoxylin keys {expected_keys}. Got: {set(hematoxylin_item.keys())}"
-    assert isinstance(
-        hematoxylin_item["image"], torch.Tensor
-    ), f"Hematoxylin image should be a torch tensor. Got: {type(hematoxylin_item['image'])}"
+    assert set(hematoxylin_item.keys()) == expected_keys, (
+        f"Expected hematoxylin keys {expected_keys}. Got: {set(hematoxylin_item.keys())}"
+    )
+    assert isinstance(hematoxylin_item["image"], torch.Tensor), (
+        f"Hematoxylin image should be a torch tensor. Got: {type(hematoxylin_item['image'])}"
+    )
     assert hematoxylin_item["image"].shape == (
         3,
         tile_dataset.image_size,
         tile_dataset.image_size,
-    ), f"Hematoxylin image should have shape (3, {tile_dataset.image_size}, {tile_dataset.image_size}). Got: {hematoxylin_item['image'].shape}"
+    ), (
+        f"Hematoxylin image should have shape (3, {tile_dataset.image_size}, {tile_dataset.image_size}). Got: {hematoxylin_item['image'].shape}"
+    )
     assert torch.all(
         (hematoxylin_item["image"] >= 0) & (hematoxylin_item["image"] <= 1)
     ), "Hematoxylin image values should be in the range [0, 1]"
@@ -255,45 +269,49 @@ def _test_TileDataset():
     # Check that jigmag task returns expected keys and types
     jigmag_item = sample_item["jigmag"]
     expected_keys = {"image", "target", "permutation", "mpps"}
-    assert (
-        set(jigmag_item.keys()) == expected_keys
-    ), f"Expected jigmag keys {expected_keys}. Got: {set(jigmag_item.keys())}"
-    assert isinstance(
-        jigmag_item["image"], torch.Tensor
-    ), f"JigMag image should be a torch tensor. Got: {type(jigmag_item['image'])}"
+    assert set(jigmag_item.keys()) == expected_keys, (
+        f"Expected jigmag keys {expected_keys}. Got: {set(jigmag_item.keys())}"
+    )
+    assert isinstance(jigmag_item["image"], torch.Tensor), (
+        f"JigMag image should be a torch tensor. Got: {type(jigmag_item['image'])}"
+    )
     assert jigmag_item["image"].shape == (
         3,
         tile_dataset.image_size,
         tile_dataset.image_size,
-    ), f"JigMag image should have shape (3, {tile_dataset.image_size}, {tile_dataset.image_size}). Got: {jigmag_item['image'].shape}"
-    assert torch.all(
-        (jigmag_item["image"] >= 0) & (jigmag_item["image"] <= 1)
-    ), "JigMag image values should be in the range [0, 1]"
-    assert isinstance(
-        jigmag_item["target"], torch.Tensor
-    ), f"JigMag target should be a torch tensor. Got: {type(jigmag_item['target'])}"
-    assert jigmag_item["target"].shape == (
-        4 * 3 * 2 * 1,
-    ), f"JigMag target should have shape {(4 * 3 * 2 * 1,)}. Got: {jigmag_item['target'].shape}"
+    ), (
+        f"JigMag image should have shape (3, {tile_dataset.image_size}, {tile_dataset.image_size}). Got: {jigmag_item['image'].shape}"
+    )
+    assert torch.all((jigmag_item["image"] >= 0) & (jigmag_item["image"] <= 1)), (
+        "JigMag image values should be in the range [0, 1]"
+    )
+    assert isinstance(jigmag_item["target"], torch.Tensor), (
+        f"JigMag target should be a torch tensor. Got: {type(jigmag_item['target'])}"
+    )
+    assert jigmag_item["target"].shape == (4 * 3 * 2 * 1,), (
+        f"JigMag target should have shape {(4 * 3 * 2 * 1,)}. Got: {jigmag_item['target'].shape}"
+    )
     assert (
         torch.all((jigmag_item["target"] == 0) | (jigmag_item["target"] == 1))
         and torch.sum(jigmag_item["target"]) == 1
-    ), "JigMag target should be a one-hot tensor with exactly one element equal to 1 and the rest equal to 0."
-    assert isinstance(
-        jigmag_item["permutation"], torch.Tensor
-    ), f"JigMag permutation should be a torch tensor. Got: {type(jigmag_item['permutation'])}"
-    assert jigmag_item["permutation"].shape == (
-        4,
-    ), f"JigMag permutation should have shape (4,). Got: {jigmag_item['permutation'].shape}"
+    ), (
+        "JigMag target should be a one-hot tensor with exactly one element equal to 1 and the rest equal to 0."
+    )
+    assert isinstance(jigmag_item["permutation"], torch.Tensor), (
+        f"JigMag permutation should be a torch tensor. Got: {type(jigmag_item['permutation'])}"
+    )
+    assert jigmag_item["permutation"].shape == (4,), (
+        f"JigMag permutation should have shape (4,). Got: {jigmag_item['permutation'].shape}"
+    )
     assert set(jigmag_item["permutation"].tolist()) == {
         0,
         1,
         2,
         3,
     }, "JigMag permutation should be a rearrangement of (0, 1, 2, 3)."
-    assert isinstance(
-        jigmag_item["mpps"], torch.Tensor
-    ), f"JigMag mpps should be a torch tensor. Got: {type(jigmag_item['mpps'])}"
+    assert isinstance(jigmag_item["mpps"], torch.Tensor), (
+        f"JigMag mpps should be a torch tensor. Got: {type(jigmag_item['mpps'])}"
+    )
 
     # Optional: Plot the images for visual inspection (requires matplotlib)
     # import matplotlib.pyplot as plt  # pylint: disable=import-outside-toplevel
@@ -350,9 +368,9 @@ def _test_TCGATileDataset():
             "jigmag",
             "tissue_segmentation",
         }
-        assert (
-            set(sample_batch.keys()) == expected_keys
-        ), f"Expected batch keys {expected_keys}. Got: {set(sample_batch.keys())}"
+        assert set(sample_batch.keys()) == expected_keys, (
+            f"Expected batch keys {expected_keys}. Got: {set(sample_batch.keys())}"
+        )
 
     # Optional: Print a sample batch for visual inspection
     print("Sample batch from TCGATileDataset:")

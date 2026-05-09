@@ -8,7 +8,7 @@ from typing import Optional
 
 import pandas as pd
 
-from VexDR.utils.logger import setup_logger
+from augur.utils.logger import setup_logger
 
 
 def reorder_data(

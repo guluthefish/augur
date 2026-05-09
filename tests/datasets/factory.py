@@ -2,7 +2,7 @@
 
 import yaml
 
-from VexDR.datasets.factory import get_dataset_from_config
+from augur.datasets.factory import get_dataset_from_config
 
 
 def _test_get_dataset_from_config():
@@ -20,9 +20,9 @@ def _test_get_dataset_from_config():
 
     # Assert that the dataset instance is created successfully
     assert dataset is not None, "Failed to create dataset instance from config."
-    assert (
-        dataset.__class__.__name__ == "TCGATileDataset"
-    ), f"Expected dataset type 'TCGATileDataset', got '{dataset.__class__.__name__}'."
+    assert dataset.__class__.__name__ == "TCGATileDataset", (
+        f"Expected dataset type 'TCGATileDataset', got '{dataset.__class__.__name__}'."
+    )
 
     # Check with invalid dataset name
     invalid_config = {"name": "InvalidDataset"}
@@ -30,9 +30,9 @@ def _test_get_dataset_from_config():
         get_dataset_from_config(invalid_config)
         assert False, "Expected ValueError for unsupported dataset name."
     except ValueError as e:
-        assert (
-            str(e) == "Unsupported dataset name: InvalidDataset"
-        ), f"Unexpected error message: {str(e)}"
+        assert str(e) == "Unsupported dataset name: InvalidDataset", (
+            f"Unexpected error message: {str(e)}"
+        )
     print("[OK] get_dataset_from_config tests passed.")
 
 

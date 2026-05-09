@@ -9,7 +9,7 @@ from typing import Any, Sequence
 import numpy as np
 from openslide import OpenSlide
 
-from VexDR.datasets.utils import read_tile_at_mpp
+from augur.datasets.utils import read_tile_at_mpp
 
 
 def process_magnification_task(

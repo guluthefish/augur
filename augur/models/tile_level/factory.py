@@ -2,13 +2,13 @@
 
 from typing import Any
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.tile_level.classifier import Classifier
-from VexDR.models.tile_level.dpt_decoder import DPTDecoder
-from VexDR.models.tile_level.resnet_encoder import ResNetEncoder
-from VexDR.models.tile_level.unet_decoder import UNetDecoder
-from VexDR.models.tile_level.unet_encoder import UNetEncoder
-from VexDR.models.tile_level.vit_encoder import ViTEncoder
+from augur.models.model_abc import ModelABC
+from augur.models.tile_level.classifier import Classifier
+from augur.models.tile_level.dpt_decoder import DPTDecoder
+from augur.models.tile_level.resnet_encoder import ResNetEncoder
+from augur.models.tile_level.unet_decoder import UNetDecoder
+from augur.models.tile_level.unet_encoder import UNetEncoder
+from augur.models.tile_level.vit_encoder import ViTEncoder
 
 
 def get_module_from_config(config: dict[str, Any]) -> ModelABC:

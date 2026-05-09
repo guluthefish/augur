@@ -22,8 +22,8 @@ from torchvision.models import (
 )
 from torchvision.models.resnet import BasicBlock, Bottleneck, ResNet
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.utils import get_lr_scheduler_from_config, get_optimizer_from_config
+from augur.models.model_abc import ModelABC
+from augur.models.utils import get_lr_scheduler_from_config, get_optimizer_from_config
 
 _PRETRAINED_SPECS: dict[
     str,

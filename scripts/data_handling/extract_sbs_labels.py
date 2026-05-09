@@ -8,13 +8,13 @@ import time
 from typing import Optional
 
 import pandas as pd
+from SigProfilerAssignment import Analyzer
 from SigProfilerMatrixGenerator import install as gen_install
 from SigProfilerMatrixGenerator.scripts import (
     SigProfilerMatrixGeneratorFunc as mat_gen,
 )
-from SigProfilerAssignment import Analyzer
 
-from VexDR.utils.logger import setup_logger
+from augur.utils.logger import setup_logger
 
 volume = os.environ.get("SIGPROFILERMATRIXGENERATOR_VOLUME")
 
@@ -272,7 +272,7 @@ def run_sigprofile(
     matrix_dir = os.path.join(signature_label_dir, "matrices")
     os.makedirs(matrix_dir, exist_ok=True)
     _ = mat_gen.SigProfilerMatrixGeneratorFunc(
-        project="VexDR",
+        project="augur",
         reference_genome="GRCh38",
         path_to_input_files=maf_dir,
         exome=True,

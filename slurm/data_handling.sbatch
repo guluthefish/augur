@@ -29,4 +29,4 @@ srun apptainer exec \
     --pwd /work \
     "$IMG" \
     env PYTHONPATH=/work SIGPROFILERMATRIXGENERATOR_VOLUME="$SIGPROFILER_REF_PATH" \
-    python -m VexDR.scripts.data_handling.main_script --config "$CONFIG"
+    python -m augur.scripts.data_handling.main_script --config "$CONFIG"

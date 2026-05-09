@@ -7,7 +7,7 @@ import os
 import tempfile
 import uuid
 
-from VexDR.utils.logger import setup_logger
+from augur.utils.logger import setup_logger
 
 
 def _restore_env(env_var: str, previous_value: str | None) -> None:
@@ -30,12 +30,12 @@ def _test_setup_logger_rank_zero_only():
             logger = setup_logger(tmpdir, logger_name, rank_zero_only=True)
 
             assert len(logger.handlers) == 1, "Expected a single NullHandler."
-            assert isinstance(
-                logger.handlers[0], logging.NullHandler
-            ), "Non-zero ranks should not attach stream/file handlers."
-            assert (
-                os.listdir(tmpdir) == []
-            ), "Non-zero ranks should not create log files."
+            assert isinstance(logger.handlers[0], logging.NullHandler), (
+                "Non-zero ranks should not attach stream/file handlers."
+            )
+            assert os.listdir(tmpdir) == [], (
+                "Non-zero ranks should not create log files."
+            )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             os.environ["RANK"] = "0"
@@ -43,8 +43,7 @@ def _test_setup_logger_rank_zero_only():
             logger = setup_logger(tmpdir, logger_name, rank_zero_only=True)
 
             assert any(
-                isinstance(handler, logging.FileHandler)
-                for handler in logger.handlers
+                isinstance(handler, logging.FileHandler) for handler in logger.handlers
             ), "Rank zero should attach a FileHandler."
             assert any(
                 isinstance(handler, logging.StreamHandler)

@@ -31,20 +31,20 @@ from openslide import OpenSlide
 from sklearn.decomposition import PCA
 from torch import Tensor
 
-from VexDR.datasets.factory import get_dataset_from_config
-from VexDR.datasets.tcga_tile_dataset import (  # noqa: F401  (private inner Dataset reused for test sampling)
+from augur.datasets.factory import get_dataset_from_config
+from augur.datasets.tcga_tile_dataset import (  # noqa: F401  (private inner Dataset reused for test sampling)
     TCGATileDataset,
     _TileDataset,
 )
-from VexDR.datasets.utils import (
+from augur.datasets.utils import (
     SlideRecord,
     TileRecord,
     derive_bcss_slide_name,
     get_slide_mpp,
     resolve_tissue_label_metadata_path,
 )
-from VexDR.models.tile_level.tile_model import TileModel
-from VexDR.utils.config import load_yaml_config
+from augur.models.tile_level.tile_model import TileModel
+from augur.utils.config import load_yaml_config
 
 SUPPORTED_METHODS = ("pca", "umap")
 SUPPORTED_EMBEDDING_SOURCES = ("encoder", "decoder", "pre-logits")
@@ -449,7 +449,7 @@ def _enumerate_bcss_grid_records(
     ``stride`` (pixels at ``base_mpp``) and emits one ``TileRecord`` per
     fully-contained position. Only positions whose tile fits inside the
     ROI are kept; tile-extent / level resolution mirrors the logic in
-    ``VexDR.datasets.utils._make_tile_record_for_mpp``.
+    ``augur.datasets.utils._make_tile_record_for_mpp``.
 
     Parameters
     ----------
@@ -473,6 +473,7 @@ def _enumerate_bcss_grid_records(
         One record per grid position; may be empty if every ROI is smaller
         than the tile extent.
     """
+
     slide = OpenSlide(slide_record.slide_path)
     try:
         slide_mpp = get_slide_mpp(slide, logger)

@@ -14,14 +14,14 @@ from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from torch.nn.parameter import UninitializedParameter
 
-from VexDR.datasets.dataset_abc import DatasetABC
-from VexDR.datasets.factory import get_dataset_from_config
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.slide_level.factory import (
+from augur.datasets.dataset_abc import DatasetABC
+from augur.datasets.factory import get_dataset_from_config
+from augur.models.model_abc import ModelABC
+from augur.models.slide_level.factory import (
     get_module_from_config as get_slide_module_from_config,
 )
-from VexDR.utils.config import load_yaml_config
-from VexDR.utils.logger import setup_logger
+from augur.utils.config import load_yaml_config
+from augur.utils.logger import setup_logger
 
 mp.set_sharing_strategy("file_system")
 

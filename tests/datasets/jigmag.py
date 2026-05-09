@@ -6,12 +6,12 @@ import random
 import numpy as np
 from openslide import OpenSlide
 
-from VexDR.datasets.jigmag import build_jigmag_permutations, process_jigmag_task
-from VexDR.datasets.utils import (
+from augur.datasets.jigmag import build_jigmag_permutations, process_jigmag_task
+from augur.datasets.utils import (
     load_slide_records,
-    tile_record_center_l0,
     resolve_manifest_path,
     sample_tile_records,
+    tile_record_center_l0,
 )
 
 
@@ -22,8 +22,7 @@ def _test_build_jigmag_permutations():
     permutations = build_jigmag_permutations(num_tiles)
     expected_num_permutations = 24  # 4! = 4 * 3 * 2 * 1
     assert len(permutations) == expected_num_permutations, (
-        f"Expected {expected_num_permutations} permutations. "
-        f"Got: {len(permutations)}"
+        f"Expected {expected_num_permutations} permutations. Got: {len(permutations)}"
     )
     print("[OK] build_jigmag_permutations test passed.")
 
@@ -76,9 +75,9 @@ def _test_process_jigmag_task():
     assert isinstance(result["mpps"], tuple)
 
     # Check that the mpps in the result match the input target_mpps
-    assert sorted(result["mpps"]) == sorted(
-        target_mpps
-    ), f"Expected mpps {target_mpps}. Got: {result['mpps']}"
+    assert sorted(result["mpps"]) == sorted(target_mpps), (
+        f"Expected mpps {target_mpps}. Got: {result['mpps']}"
+    )
     # Check the shape of the image
     assert result["image"].shape == (
         512,

@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.slide_level.dual_clam import DualCLAM
-from VexDR.models.slide_level.mil import EmbeddingMIL
+from augur.models.model_abc import ModelABC
+from augur.models.slide_level.dual_clam import DualCLAM
+from augur.models.slide_level.mil import EmbeddingMIL
 
 
 def get_module_from_config(config: dict[str, Any]) -> ModelABC:

@@ -12,15 +12,15 @@ from torch import nn, Tensor
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.slide_level.attention import Attention, GatedAttention
-from VexDR.models.tile_level.tile_model import TileModel
-from VexDR.models.utils import (
+from augur.models.model_abc import ModelABC
+from augur.models.slide_level.attention import Attention, GatedAttention
+from augur.models.tile_level.tile_model import TileModel
+from augur.models.utils import (
     get_lr_scheduler_from_config,
     get_optimizer_from_config,
 )
-from VexDR.utils.config import load_yaml_config
-from VexDR.utils.metrics import compute_classification_loss
+from augur.utils.config import load_yaml_config
+from augur.utils.metrics import compute_classification_loss
 
 AggregationMethod = Literal["max", "mean", "attention"]
 _SUPPORTED_AGGREGATION_METHODS: tuple[str, ...] = ("max", "mean", "attention")
@@ -590,7 +590,9 @@ class EmbeddingMIL(ModelABC):
                 features = self._get_last_features(self.encoder(flat))
             else:
                 feature_chunks = [
-                    self._get_last_features(self.encoder(flat[start : start + chunk_size]))
+                    self._get_last_features(
+                        self.encoder(flat[start : start + chunk_size])
+                    )
                     for start in range(0, flat.shape[0], chunk_size)
                 ]
                 features = torch.cat(feature_chunks, dim=0)

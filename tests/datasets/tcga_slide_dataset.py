@@ -3,8 +3,8 @@
 import torch
 import yaml
 
-from VexDR.datasets.factory import get_dataset_from_config
-from VexDR.datasets.tcga_slide_dataset import (
+from augur.datasets.factory import get_dataset_from_config
+from augur.datasets.tcga_slide_dataset import (
     UNKNOWN_SUBTYPE_CLASS,
     TCGASlideDataset,
     _SlideDataset,
@@ -39,15 +39,15 @@ def _test_SlideDataset() -> None:
     datamodule.setup(stage="fit")
 
     train_dataset = datamodule.train_dataset
-    assert isinstance(
-        train_dataset, _SlideDataset
-    ), f"Expected _SlideDataset, got: {type(train_dataset)}"
+    assert isinstance(train_dataset, _SlideDataset), (
+        f"Expected _SlideDataset, got: {type(train_dataset)}"
+    )
     assert len(train_dataset) > 0, "Train split should contain at least one slide."
 
     # Subtyping main-task label table is loaded into the datamodule.
-    assert (
-        datamodule.main_label_names[0] == UNKNOWN_SUBTYPE_CLASS
-    ), "Subtyping class index 0 must always be the unknown class."
+    assert datamodule.main_label_names[0] == UNKNOWN_SUBTYPE_CLASS, (
+        "Subtyping class index 0 must always be the unknown class."
+    )
     assert datamodule.num_main_labels >= 2, (
         "Need at least one real subtype + the unknown class. "
         f"Got: {datamodule.num_main_labels}."
@@ -55,14 +55,14 @@ def _test_SlideDataset() -> None:
 
     sample = train_dataset[0]
     expected_keys = {"image", "target", "metadata"}
-    assert (
-        set(sample.keys()) == expected_keys
-    ), f"Expected sample keys {expected_keys}. Got: {set(sample.keys())}"
+    assert set(sample.keys()) == expected_keys, (
+        f"Expected sample keys {expected_keys}. Got: {set(sample.keys())}"
+    )
 
     image = sample["image"]
-    assert isinstance(
-        image, torch.Tensor
-    ), f"image must be a tensor. Got: {type(image)}"
+    assert isinstance(image, torch.Tensor), (
+        f"image must be a tensor. Got: {type(image)}"
+    )
     K = image.shape[0]
     candidate_count = len(
         train_dataset.centers_by_slide_id[train_dataset.slide_records[0].slide_id]
@@ -79,21 +79,21 @@ def _test_SlideDataset() -> None:
         datamodule.image_size,
         datamodule.image_size,
     ), f"image should have shape (K, 3, H, W). Got: {image.shape}"
-    assert torch.all(
-        (image >= 0) & (image <= 1)
-    ), "image values should be in the range [0, 1]."
+    assert torch.all((image >= 0) & (image <= 1)), (
+        "image values should be in the range [0, 1]."
+    )
 
     target = sample["target"]
-    assert isinstance(
-        target, torch.Tensor
-    ), f"target must be a tensor. Got: {type(target)}"
+    assert isinstance(target, torch.Tensor), (
+        f"target must be a tensor. Got: {type(target)}"
+    )
     assert target.ndim == 0, (
         "Subtyping main-task target should be a scalar long. "
         f"Got shape: {target.shape}."
     )
-    assert (
-        target.dtype == torch.long
-    ), f"Subtyping target should be long. Got: {target.dtype}"
+    assert target.dtype == torch.long, (
+        f"Subtyping target should be long. Got: {target.dtype}"
+    )
     assert 0 <= int(target.item()) < datamodule.num_main_labels, (
         "Subtyping class index out of range. "
         f"Got: {int(target.item())} / {datamodule.num_main_labels}."
@@ -110,9 +110,9 @@ def _test_SlideDataset() -> None:
         "tile_level",
         "tile_size",
     }
-    assert (
-        set(metadata.keys()) == expected_metadata_keys
-    ), f"Expected metadata keys {expected_metadata_keys}. Got: {set(metadata.keys())}"
+    assert set(metadata.keys()) == expected_metadata_keys, (
+        f"Expected metadata keys {expected_metadata_keys}. Got: {set(metadata.keys())}"
+    )
     assert metadata["task"] == "subtyping"
     assert metadata["tile_centers"].shape == (K, 2)
     assert metadata["tile_xy"].shape == (K, 2)
@@ -139,9 +139,9 @@ def _test_TCGASlideDataset() -> None:
         config = yaml.safe_load(file)
 
     datamodule = get_dataset_from_config(config)
-    assert isinstance(
-        datamodule, TCGASlideDataset
-    ), f"Expected TCGASlideDataset. Got: {type(datamodule)}"
+    assert isinstance(datamodule, TCGASlideDataset), (
+        f"Expected TCGASlideDataset. Got: {type(datamodule)}"
+    )
     assert datamodule.main_task == "subtyping"
     assert datamodule.pretext_tasks, (
         "Test config should configure at least one SBS pretext task. "
@@ -150,27 +150,27 @@ def _test_TCGASlideDataset() -> None:
 
     datamodule.prepare_data()
     datamodule.setup()
-    assert (
-        datamodule.main_label_names[0] == UNKNOWN_SUBTYPE_CLASS
-    ), "Subtyping class index 0 must always be the unknown class."
+    assert datamodule.main_label_names[0] == UNKNOWN_SUBTYPE_CLASS, (
+        "Subtyping class index 0 must always be the unknown class."
+    )
     assert datamodule.num_main_labels >= 2
 
     main_submitter_labels = datamodule._main_submitter_labels
     assert main_submitter_labels is not None, "Main labels should be loaded."
-    assert (
-        "TCGA-A1-A0SK" in main_submitter_labels
-    ), "Expected the test submitter TCGA-A1-A0SK in the main label table."
+    assert "TCGA-A1-A0SK" in main_submitter_labels, (
+        "Expected the test submitter TCGA-A1-A0SK in the main label table."
+    )
 
     # Each pretext SBS task exposes a vector-valued label table.
     for pretext_task in datamodule.pretext_tasks:
         names = datamodule.pretext_label_names[pretext_task]
-        assert (
-            len(names) >= 1
-        ), f"Pretext task '{pretext_task}' should expose at least one label column."
+        assert len(names) >= 1, (
+            f"Pretext task '{pretext_task}' should expose at least one label column."
+        )
         assert datamodule.num_pretext_labels[pretext_task] == len(names)
-        assert (
-            "TCGA-A1-A0SK" in datamodule._pretext_submitter_labels[pretext_task]
-        ), f"Pretext '{pretext_task}' should cover submitter TCGA-A1-A0SK."
+        assert "TCGA-A1-A0SK" in datamodule._pretext_submitter_labels[pretext_task], (
+            f"Pretext '{pretext_task}' should cover submitter TCGA-A1-A0SK."
+        )
 
     expected_batch_keys = {
         "image",
@@ -186,9 +186,9 @@ def _test_TCGASlideDataset() -> None:
         (datamodule.test_dataloader(), datamodule.test_batch_size),
     ):
         batch = next(iter(dataloader))
-        assert (
-            set(batch.keys()) == expected_batch_keys
-        ), f"Unexpected batch keys: {set(batch.keys())}"
+        assert set(batch.keys()) == expected_batch_keys, (
+            f"Unexpected batch keys: {set(batch.keys())}"
+        )
 
         image = batch["image"]
         B, K = image.shape[0], image.shape[1]
@@ -199,9 +199,9 @@ def _test_TCGASlideDataset() -> None:
             datamodule.image_size,
             datamodule.image_size,
         ), f"Unexpected image batch shape: {image.shape}"
-        assert (
-            B <= batch_size
-        ), f"Batch dim should be <= batch_size={batch_size}. Got: {B}."
+        assert B <= batch_size, (
+            f"Batch dim should be <= batch_size={batch_size}. Got: {B}."
+        )
         assert K >= 1, "Each batch should contain at least one tile per bag."
 
         mask = batch["mask"]
@@ -210,19 +210,19 @@ def _test_TCGASlideDataset() -> None:
         assert mask.any(dim=-1).all(), "Every bag should have at least one valid tile."
 
         target = batch["target"]
-        assert target.shape == (
-            B,
-        ), f"Subtyping target should be a (B,) long tensor. Got: {target.shape}."
+        assert target.shape == (B,), (
+            f"Subtyping target should be a (B,) long tensor. Got: {target.shape}."
+        )
         assert target.dtype == torch.long
-        assert torch.all(
-            (target >= 0) & (target < datamodule.num_main_labels)
-        ), "Subtyping class indices must lie in [0, num_main_labels)."
+        assert torch.all((target >= 0) & (target < datamodule.num_main_labels)), (
+            "Subtyping class indices must lie in [0, num_main_labels)."
+        )
 
         for pretext_task in datamodule.pretext_tasks:
             pretext_target = batch[pretext_task]["target"]
-            assert isinstance(
-                pretext_target, torch.Tensor
-            ), f"Pretext '{pretext_task}' target must be a tensor."
+            assert isinstance(pretext_target, torch.Tensor), (
+                f"Pretext '{pretext_task}' target must be a tensor."
+            )
             assert pretext_target.shape == (
                 B,
                 datamodule.num_pretext_labels[pretext_task],
@@ -231,12 +231,12 @@ def _test_TCGASlideDataset() -> None:
                 f"({B}, {datamodule.num_pretext_labels[pretext_task]}). "
                 f"Got: {pretext_target.shape}."
             )
-            assert (
-                pretext_target.dtype == torch.float32
-            ), f"Pretext '{pretext_task}' target should be float32."
-            assert torch.isfinite(
-                pretext_target
-            ).all(), f"Pretext '{pretext_task}' target contains non-finite values."
+            assert pretext_target.dtype == torch.float32, (
+                f"Pretext '{pretext_task}' target should be float32."
+            )
+            assert torch.isfinite(pretext_target).all(), (
+                f"Pretext '{pretext_task}' target contains non-finite values."
+            )
 
     datamodule.teardown()
     print("[OK] TCGASlideDataset test passed.")

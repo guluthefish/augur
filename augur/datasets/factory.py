@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from VexDR.datasets.dataset_abc import DatasetABC
-from VexDR.datasets.tcga_slide_dataset import TCGASlideDataset
-from VexDR.datasets.tcga_tile_dataset import TCGATileDataset
+from augur.datasets.dataset_abc import DatasetABC
+from augur.datasets.tcga_slide_dataset import TCGASlideDataset
+from augur.datasets.tcga_tile_dataset import TCGATileDataset
 
 
 def get_dataset_from_config(config: dict[str, Any]) -> DatasetABC:

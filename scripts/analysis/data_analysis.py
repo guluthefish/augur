@@ -5,7 +5,7 @@ import os
 import numpy as np
 from openslide import OpenSlide
 
-from VexDR.datasets.utils import load_slide_records, resolve_manifest_path
+from augur.datasets.utils import load_slide_records, resolve_manifest_path
 
 
 def get_mpp_statistics():

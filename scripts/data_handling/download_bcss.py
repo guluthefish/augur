@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-from argparse import ArgumentParser
 import io
 import logging
 import os
 import time
+from argparse import ArgumentParser
 from typing import Any, Optional
 
 import pandas as pd
-from PIL import Image
 import requests
 import yaml
+from PIL import Image
 
-from VexDR.utils.logger import setup_logger
-
+from augur.utils.logger import setup_logger
 
 DEFAULT_API_URL = "https://demo.kitware.com/histomicstk/api/v1"
 SUPPORTED_PIPELINES = ("images", "masks", "annotations")
@@ -144,8 +143,7 @@ def load_bcss_metadata(root_dir: str) -> pd.DataFrame:
     missing_slide_columns = required_slide_columns.difference(slide_df.columns)
     if missing_slide_columns:
         raise ValueError(
-            "BCSS slide metadata file missing columns: "
-            f"{sorted(missing_slide_columns)}"
+            f"BCSS slide metadata file missing columns: {sorted(missing_slide_columns)}"
         )
 
     slide_df["magnification"] = pd.to_numeric(
@@ -456,7 +454,8 @@ def download_roi_masks(
         if mask.size != target_size:
             cv2 = require_cv2()
             mask = mask.resize(
-                target_size, resample=cv2.INTER_NEAREST  # pylint: disable=no-member
+                target_size,
+                resample=cv2.INTER_NEAREST,  # pylint: disable=no-member
             )
 
         mask.save(output_path)
@@ -594,7 +593,7 @@ def download_bcss(
     )
 
     session = requests.Session()
-    session.headers.update({"User-Agent": "VexDR/download_bcss"})
+    session.headers.update({"User-Agent": "augur/download_bcss"})
 
     summary: dict[str, dict[str, int]] = {}
     try:

@@ -3,10 +3,10 @@
 import os
 import time
 
-from openslide import OpenSlide
 import pandas as pd
+from openslide import OpenSlide
 
-from VexDR.utils.logger import setup_logger
+from augur.utils.logger import setup_logger
 
 
 def remove_missing_mpp_metadata(root_dir: str, manifest_downloaded: str) -> str:

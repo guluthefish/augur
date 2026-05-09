@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import torch
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.tile_level.unet_decoder import UNetDecoder
-from VexDR.models.tile_level.unet_encoder import UNetEncoder
+from augur.models.model_abc import ModelABC
+from augur.models.tile_level.unet_decoder import UNetDecoder
+from augur.models.tile_level.unet_encoder import UNetEncoder
 
 
 def _test_init():
@@ -25,7 +25,9 @@ def _test_init():
         128,
         256,
         512,
-    ), f"Expected default feature channels (64, 64, 128, 256, 512). Got: {encoder.feature_channels}."
+    ), (
+        f"Expected default feature channels (64, 64, 128, 256, 512). Got: {encoder.feature_channels}."
+    )
     print("[OK] UNetEncoder initialization test passed.")
 
 
@@ -164,40 +166,46 @@ def _test_from_config():
         }
     )
 
-    assert (
-        encoder.optimizer_factory is torch.optim.AdamW
-    ), "Expected UNetEncoder.from_config() to attach the AdamW factory."
+    assert encoder.optimizer_factory is torch.optim.AdamW, (
+        "Expected UNetEncoder.from_config() to attach the AdamW factory."
+    )
     assert encoder.optimizer_kwargs == {
         "lr": 5e-4,
         "weight_decay": 0.01,
-    }, f"Expected UNetEncoder optimizer kwargs to match the config. Got: {encoder.optimizer_kwargs}"
-    assert (
-        encoder.lr_scheduler_factory is torch.optim.lr_scheduler.ReduceLROnPlateau
-    ), "Expected UNetEncoder.from_config() to attach the ReduceLROnPlateau factory."
-    assert encoder.lr_scheduler_kwargs == {
-        "patience": 3
-    }, f"Expected UNetEncoder scheduler kwargs to match the config. Got: {encoder.lr_scheduler_kwargs}"
+    }, (
+        f"Expected UNetEncoder optimizer kwargs to match the config. Got: {encoder.optimizer_kwargs}"
+    )
+    assert encoder.lr_scheduler_factory is torch.optim.lr_scheduler.ReduceLROnPlateau, (
+        "Expected UNetEncoder.from_config() to attach the ReduceLROnPlateau factory."
+    )
+    assert encoder.lr_scheduler_kwargs == {"patience": 3}, (
+        f"Expected UNetEncoder scheduler kwargs to match the config. Got: {encoder.lr_scheduler_kwargs}"
+    )
     assert encoder.lr_scheduler_config == {
         "monitor": "val/loss",
         "interval": "epoch",
-    }, f"Expected UNetEncoder scheduler config to match the config. Got: {encoder.lr_scheduler_config}"
+    }, (
+        f"Expected UNetEncoder scheduler config to match the config. Got: {encoder.lr_scheduler_config}"
+    )
 
-    assert (
-        encoder.input_channels == 3
-    ), f"Expected input_channels to be 3. Got: {encoder.input_channels}."
+    assert encoder.input_channels == 3, (
+        f"Expected input_channels to be 3. Got: {encoder.input_channels}."
+    )
     assert encoder.feature_channels == (
         64,
         64,
         128,
         256,
         512,
-    ), f"Expected feature_channels to be (64, 64, 128, 256, 512). Got: {encoder.feature_channels}."
-    assert (
-        encoder.dropout == 0.1
-    ), f"Expected dropout to be 0.1. Got: {encoder.dropout}."
-    assert isinstance(
-        encoder, UNetEncoder
-    ), f"Expected UNetEncoder.from_config() to return a UNetEncoder instance. Got: {type(encoder)}."
+    ), (
+        f"Expected feature_channels to be (64, 64, 128, 256, 512). Got: {encoder.feature_channels}."
+    )
+    assert encoder.dropout == 0.1, (
+        f"Expected dropout to be 0.1. Got: {encoder.dropout}."
+    )
+    assert isinstance(encoder, UNetEncoder), (
+        f"Expected UNetEncoder.from_config() to return a UNetEncoder instance. Got: {type(encoder)}."
+    )
 
     print("[OK] UNetEncoder.from_config() test passed.")
 

@@ -1,4 +1,4 @@
-"""Setup script for the VexDR package."""
+"""Setup script for the Augur package."""
 
 from pathlib import Path
 
@@ -8,7 +8,7 @@ ROOT = Path(__file__).parent
 
 
 setup(
-    name="VexDR",
+    name="augur",
     version="0.0.1",
     description="",
     long_description=(ROOT / "README.md").read_text(encoding="utf-8"),
@@ -16,7 +16,7 @@ setup(
     author="Phuong Ho",
     author_email="nho@tudelft.nl",
     python_requires=">=3.12",
-    packages=find_namespace_packages(include=["VexDR*"]),
+    packages=find_namespace_packages(include=["augur*"]),
     include_package_data=True,
     install_requires=[
         "lightning==2.6.1",

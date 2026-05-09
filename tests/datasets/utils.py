@@ -1,16 +1,14 @@
-"""Unit test for utility functions in VexDR datasets."""
+"""Unit test for utility functions in augur datasets."""
 
 import os
 
-
 import numpy as np
-from openslide import OpenSlide
 import pandas as pd
+import torch
+from openslide import OpenSlide
 from PIL import Image
 
-import torch
-
-from VexDR.datasets.utils import (
+from augur.datasets.utils import (
     as_image_tensor,
     as_mask_tensor,
     compute_tissue_mask,
@@ -18,7 +16,6 @@ from VexDR.datasets.utils import (
     enumerate_slide_tile_centers,
     load_slide_records,
     load_tissue_mask_label,
-    tile_record_center_l0,
     read_tile_at_mpp,
     read_tile_from_record,
     resolve_manifest_path,
@@ -28,6 +25,7 @@ from VexDR.datasets.utils import (
     sample_tile_records,
     scaled_thumbnail_size,
     split_slide_records,
+    tile_record_center_l0,
 )
 
 
@@ -648,10 +646,9 @@ def _test_resolve_slide_main_label_path():
 
     # Atlas-driven resolution returns an existing file for the supported task.
     resolved_via_atlas = resolve_slide_main_label_path(root_dir, "subtyping", None)
-    assert os.path.exists(resolved_via_atlas), (
-        "Atlas-resolved subtyping labels path should exist. "
-        f"Got: {resolved_via_atlas}"
-    )
+    assert os.path.exists(
+        resolved_via_atlas
+    ), f"Atlas-resolved subtyping labels path should exist. Got: {resolved_via_atlas}"
 
     print("[OK] resolve_slide_main_label_path test passed.")
 
@@ -781,7 +778,7 @@ def _test_enumerate_slide_tile_centers():
 
 
 def test_all_datasets_utils():
-    """Run all tests for VexDR.datasets.utils."""
+    """Run all tests for augur.datasets.utils."""
     print("Running dataset utility tests...")
     _test_resolve_manifest_path()
     _test_resolve_slide_main_label_path()

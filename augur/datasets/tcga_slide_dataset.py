@@ -19,8 +19,8 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from VexDR.datasets.dataset_abc import DatasetABC
-from VexDR.datasets.utils import (
+from augur.datasets.dataset_abc import DatasetABC
+from augur.datasets.utils import (
     SlideRecord,
     enumerate_slide_tile_centers,
     load_slide_records,
@@ -31,7 +31,7 @@ from VexDR.datasets.utils import (
     split_slide_records,
     _make_tile_record_for_mpp,
 )
-from VexDR.utils.logger import setup_logger
+from augur.utils.logger import setup_logger
 
 SUPPORTED_MAIN_TASKS: tuple[str, ...] = ("subtyping",)
 SUPPORTED_PRETEXT_TASKS: tuple[str, ...] = (

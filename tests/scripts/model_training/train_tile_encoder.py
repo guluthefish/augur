@@ -7,18 +7,20 @@ import os
 import tempfile
 
 import torch
+from augur.scripts.model_training.train_tile_encoder import (
+    _initialize_lazy_modules_from_dataloader,
+    _resolve_resume_checkpoint_path,
+)
+from augur.scripts.model_training.train_tile_encoder import (
+    train as train_tile_encoder,
+)
 from torch.nn.parameter import UninitializedParameter
 from torch.utils.data import Dataset
 
-from VexDR.datasets.dataset_abc import DatasetABC
-from VexDR.models.tile_level.classifier import Classifier
-from VexDR.models.tile_level.tile_model import TileModel
-from VexDR.models.tile_level.unet_encoder import UNetEncoder
-from VexDR.scripts.model_training.train_tile_encoder import (
-    _initialize_lazy_modules_from_dataloader,
-    _resolve_resume_checkpoint_path,
-    train as train_tile_encoder,
-)
+from augur.datasets.dataset_abc import DatasetABC
+from augur.models.tile_level.classifier import Classifier
+from augur.models.tile_level.tile_model import TileModel
+from augur.models.tile_level.unet_encoder import UNetEncoder
 
 
 class _WarmupDataset(Dataset):
@@ -78,16 +80,16 @@ def _test_resolve_resume_checkpoint_path():
         assert _resolve_resume_checkpoint_path(
             {},
             checkpoint_dir=checkpoint_dir,
-        ) == os.path.abspath(
-            last_checkpoint
-        ), "Expected auto-resume to pick up checkpoint_dir/last.ckpt."
+        ) == os.path.abspath(last_checkpoint), (
+            "Expected auto-resume to pick up checkpoint_dir/last.ckpt."
+        )
 
         assert _resolve_resume_checkpoint_path(
             {"resume_from": "auto"},
             checkpoint_dir=checkpoint_dir,
-        ) == os.path.abspath(
-            last_checkpoint
-        ), "Expected explicit auto-resume to use checkpoint_dir/last.ckpt."
+        ) == os.path.abspath(last_checkpoint), (
+            "Expected explicit auto-resume to use checkpoint_dir/last.ckpt."
+        )
 
         explicit_checkpoint = os.path.join(tmpdir, "manual.ckpt")
         with open(explicit_checkpoint, "wb") as handle:
@@ -96,9 +98,9 @@ def _test_resolve_resume_checkpoint_path():
         assert _resolve_resume_checkpoint_path(
             {"resume_from": explicit_checkpoint},
             checkpoint_dir=checkpoint_dir,
-        ) == os.path.abspath(
-            explicit_checkpoint
-        ), "Expected explicit resume path to be preserved."
+        ) == os.path.abspath(explicit_checkpoint), (
+            "Expected explicit resume path to be preserved."
+        )
 
     print("[OK] resume checkpoint path resolution test passed.")
 
@@ -145,7 +147,9 @@ def test_initialize_lazy_modules_from_dataloader():
     assert predictions["magnification"].shape == (
         2,
         4,
-    ), f"Expected batched classifier logits of shape (2, 4). Got: {predictions['magnification'].shape}"
+    ), (
+        f"Expected batched classifier logits of shape (2, 4). Got: {predictions['magnification'].shape}"
+    )
 
     print("[OK] lazy-module warmup test passed.")
 
@@ -177,19 +181,19 @@ def test_train_tile_encoder():
 
     assert isinstance(predictions, dict), "Predictions should be a dictionary."
     expected_keys = {"hematoxylin", "tissue_segmentation"}
-    assert expected_keys.issubset(
-        predictions.keys()
-    ), f"Predictions should contain keys: {expected_keys}"
+    assert expected_keys.issubset(predictions.keys()), (
+        f"Predictions should contain keys: {expected_keys}"
+    )
 
     for task_name in expected_keys:
         assert task_name in predictions, f"Missing prediction for task: {task_name}"
         prediction = predictions[task_name]
-        assert isinstance(
-            prediction, torch.Tensor
-        ), f"Prediction for {task_name} should be a tensor."
-        assert (
-            prediction.ndim >= 3
-        ), f"Prediction for {task_name} should have at least 3 dimensions (batch, channels, ...)."
+        assert isinstance(prediction, torch.Tensor), (
+            f"Prediction for {task_name} should be a tensor."
+        )
+        assert prediction.ndim >= 3, (
+            f"Prediction for {task_name} should have at least 3 dimensions (batch, channels, ...)."
+        )
 
     # Optionally visualize the input, target, and prediction for each task
     # import matplotlib.pyplot as plt  # pylint: disable=import-outside-toplevel

@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from VexDR.datasets.hematoxylin import (
+from augur.datasets.hematoxylin import (
     extract_hematoxylin_channel,
     process_hematoxylin_task,
 )
@@ -26,13 +26,13 @@ def _test_extract_hematoxylin_channel():
         2,
         3,
     ), f"Expected shape (2, 3). Got: {hematoxylin_channel.shape}"
-    assert (
-        hematoxylin_channel.dtype == np.float32
-    ), f"Expected dtype float32. Got: {hematoxylin_channel.dtype}"
+    assert hematoxylin_channel.dtype == np.float32, (
+        f"Expected dtype float32. Got: {hematoxylin_channel.dtype}"
+    )
     # Check that the values are in the range [0, 1]
-    assert np.all(
-        (hematoxylin_channel >= 0) & (hematoxylin_channel <= 1)
-    ), "Values should be in the range [0, 1]"
+    assert np.all((hematoxylin_channel >= 0) & (hematoxylin_channel <= 1)), (
+        "Values should be in the range [0, 1]"
+    )
     print("[OK] extract_hematoxylin_channel test passed.")
 
 
@@ -52,12 +52,12 @@ def _test_process_hematoxylin_task():
         64,
     ), f"Expected target shape (64, 64). Got: {item_dict['target'].shape}"
     # Check that the image values are in the range [0, 1]
-    assert np.all(
-        (item_dict["image"] >= 0) & (item_dict["image"] <= 1)
-    ), "Image values should be in the range [0, 1]"
-    assert np.all(
-        (item_dict["target"] >= 0) & (item_dict["target"] <= 1)
-    ), "Target values should be in the range [0, 1]"
+    assert np.all((item_dict["image"] >= 0) & (item_dict["image"] <= 1)), (
+        "Image values should be in the range [0, 1]"
+    )
+    assert np.all((item_dict["target"] >= 0) & (item_dict["target"] <= 1)), (
+        "Target values should be in the range [0, 1]"
+    )
 
     print("[OK] process_hematoxylin_task test passed.")
 

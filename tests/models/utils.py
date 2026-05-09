@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import torch
 
-from VexDR.models.tile_level.unet_encoder import UNetEncoder
-from VexDR.models.utils import (
+from augur.models.tile_level.unet_encoder import UNetEncoder
+from augur.models.utils import (
     get_lr_scheduler_from_config,
     get_optimizer_from_config,
 )
-from VexDR.utils import load_yaml_config
+from augur.utils import load_yaml_config
 
 
 def _test_get_optimizer_from_config():
@@ -22,9 +22,9 @@ def _test_get_optimizer_from_config():
         }
     )
 
-    assert (
-        optimizer_factory is torch.optim.AdamW
-    ), "Expected torch.optim.AdamW from the optimizer config."
+    assert optimizer_factory is torch.optim.AdamW, (
+        "Expected torch.optim.AdamW from the optimizer config."
+    )
     assert optimizer_kwargs == {
         "lr": 1e-3,
         "weight_decay": 0.01,
@@ -55,9 +55,9 @@ def _test_get_lr_scheduler_from_config():
         )
     )
 
-    assert (
-        scheduler_factory is torch.optim.lr_scheduler.ReduceLROnPlateau
-    ), "Expected torch.optim.lr_scheduler.ReduceLROnPlateau from the scheduler config."
+    assert scheduler_factory is torch.optim.lr_scheduler.ReduceLROnPlateau, (
+        "Expected torch.optim.lr_scheduler.ReduceLROnPlateau from the scheduler config."
+    )
     assert scheduler_kwargs == {
         "patience": 2,
         "factor": 0.5,
@@ -75,12 +75,12 @@ def _test_load_yaml_config_with_extends():
     config = load_yaml_config("configs/encoder-prov-gigapath.yaml")
 
     assert config["name"] == "ViTEncoder", f"Unexpected model name: {config['name']}"
-    assert (
-        config["params"]["model_name"] == "hf_hub:prov-gigapath/prov-gigapath"
-    ), "The local ViT config should keep its model_name after merging."
-    assert (
-        config["params"]["pretrained"] is True
-    ), "The local ViT config should keep its pretrained flag after merging."
+    assert config["params"]["model_name"] == "hf_hub:prov-gigapath/prov-gigapath", (
+        "The local ViT config should keep its model_name after merging."
+    )
+    assert config["params"]["pretrained"] is True, (
+        "The local ViT config should keep its pretrained flag after merging."
+    )
     assert config["params"]["optimizer"] == {
         "name": "adamw",
         "params": {"lr": 0.0001, "weight_decay": 0.01},

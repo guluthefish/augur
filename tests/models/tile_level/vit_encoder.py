@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import torch
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.tile_level.vit_encoder import ViTEncoder
+from augur.models.model_abc import ModelABC
+from augur.models.tile_level.vit_encoder import ViTEncoder
 
 
 def _test_init():
@@ -35,7 +35,9 @@ def _test_forward():
         2,
         197,
         192,
-    ), f"Expected ViT token shape (2, 197, 192) for vit_tiny_patch16_224. Got: {tokens.shape}."
+    ), (
+        f"Expected ViT token shape (2, 197, 192) for vit_tiny_patch16_224. Got: {tokens.shape}."
+    )
     print("[OK] ViTEncoder.forward() test passed.")
 
 
@@ -75,15 +77,15 @@ def _test_from_config():
         }
     )
 
-    assert (
-        encoder.optimizer_factory is torch.optim.AdamW
-    ), "Expected AdamW optimizer factory from config."
-    assert encoder.optimizer_kwargs == {
-        "lr": 5e-4
-    }, f"Expected AdamW optimizer kwargs from config. Got: {encoder.optimizer_kwargs}"
-    assert (
-        encoder.lr_scheduler_factory is torch.optim.lr_scheduler.StepLR
-    ), "Expected StepLR scheduler factory from config."
+    assert encoder.optimizer_factory is torch.optim.AdamW, (
+        "Expected AdamW optimizer factory from config."
+    )
+    assert encoder.optimizer_kwargs == {"lr": 5e-4}, (
+        f"Expected AdamW optimizer kwargs from config. Got: {encoder.optimizer_kwargs}"
+    )
+    assert encoder.lr_scheduler_factory is torch.optim.lr_scheduler.StepLR, (
+        "Expected StepLR scheduler factory from config."
+    )
     assert encoder.lr_scheduler_kwargs == {
         "step_size": 5,
         "gamma": 0.5,

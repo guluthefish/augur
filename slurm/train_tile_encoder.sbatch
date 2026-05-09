@@ -13,7 +13,7 @@
 set -eu
 
 REPO="/tudelft.net/staff-umbrella/IMGEN"
-IMG="$REPO/containers/vexdr.sif"
+IMG="$REPO/containers/augur.sif"
 OUTDIR="$REPO/slurm/output"
 
 MODEL_NAME="resnet50"
@@ -58,7 +58,7 @@ case "$MODEL_NAME" in
         --env HF_HOME=/tmp/huggingface \
         --pwd /work \
         "$IMG" \
-        /opt/conda/envs/vexdr/bin/python -c "
+        /opt/conda/envs/augur/bin/python -c "
 from dotenv import load_dotenv
 load_dotenv()
 import timm
@@ -86,5 +86,5 @@ srun apptainer exec \
     --env NCCL_DEBUG=WARN \
     --pwd /work \
     "$IMG" \
-    /opt/conda/envs/vexdr/bin/python scripts/model_training/train_tile_encoder.py \
+    /opt/conda/envs/augur/bin/python scripts/model_training/train_tile_encoder.py \
     --model-config "$MODEL_CFG" --dataset-config "$DATA_CFG" --training-config "$TRAIN_CFG"

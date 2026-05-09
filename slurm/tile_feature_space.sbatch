@@ -11,7 +11,7 @@
 set -eu
 
 REPO="/tudelft.net/staff-umbrella/IMGEN"
-IMG="$REPO/containers/vexdr.sif"
+IMG="$REPO/containers/augur.sif"
 OUTDIR="$REPO/slurm/output"
 MODEL_NAME="resnet50-jigmag"
 MODEL_CONFIG="$REPO/configs/model-${MODEL_NAME}.yaml"
@@ -36,7 +36,7 @@ srun apptainer exec \
     -B "$tmpdir:/dev/shm" \
     --pwd /work \
     "$IMG" \
-    /opt/conda/envs/vexdr/bin/python \
+    /opt/conda/envs/augur/bin/python \
     scripts/visualization/tile_embeddings.py \
     --model-config "$MODEL_CONFIG" \
     --dataset-config "$DATA_CONFIG" \

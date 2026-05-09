@@ -9,11 +9,11 @@ from torch import Tensor, nn
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.tile_level.factory import get_module_from_config
-from VexDR.models.utils import get_lr_scheduler_from_config, get_optimizer_from_config
-from VexDR.utils.config import load_yaml_config
-from VexDR.utils.metrics import (
+from augur.models.model_abc import ModelABC
+from augur.models.tile_level.factory import get_module_from_config
+from augur.models.utils import get_lr_scheduler_from_config, get_optimizer_from_config
+from augur.utils.config import load_yaml_config
+from augur.utils.metrics import (
     compute_classification_loss,
     compute_regression_loss,
     compute_semantic_segmentation_loss,

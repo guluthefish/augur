@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import torch
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.tile_level.dpt_decoder import DPTDecoder
-from VexDR.models.tile_level.vit_encoder import ViTEncoder
+from augur.models.model_abc import ModelABC
+from augur.models.tile_level.dpt_decoder import DPTDecoder
+from augur.models.tile_level.vit_encoder import ViTEncoder
 
 
 def _test_init():
@@ -65,7 +65,9 @@ def _test_predict_step_with_feature_dict():
         1,
         128,
         128,
-    ), f"Expected DPTDecoder predict logits shape (1, 1, 128, 128). Got: {logits.shape}."
+    ), (
+        f"Expected DPTDecoder predict logits shape (1, 1, 128, 128). Got: {logits.shape}."
+    )
     print("[OK] DPTDecoder.predict_step() test passed.")
 
 
@@ -111,39 +113,41 @@ def _test_from_config():
 
     decoder = DPTDecoder.from_config(config)
 
-    assert isinstance(
-        decoder, DPTDecoder
-    ), f"Expected a DPTDecoder instance. Got: {type(decoder)}."
-    assert isinstance(
-        decoder.configure_optimizers(), dict
-    ), f"Expected a dict of optimizers and schedulers from config. Got: {type(decoder.configure_optimizers())}."
-    assert isinstance(
-        decoder.configure_optimizers()["optimizer"], torch.optim.AdamW
-    ), f"Expected AdamW optimizer from config. Got: {type(decoder.configure_optimizers()['optimizer'])}."
-    assert isinstance(
-        decoder.configure_optimizers()["lr_scheduler"], dict
-    ), f"Expected a dict of schedulers from config. Got: {type(decoder.configure_optimizers()['lr_scheduler'])}."
+    assert isinstance(decoder, DPTDecoder), (
+        f"Expected a DPTDecoder instance. Got: {type(decoder)}."
+    )
+    assert isinstance(decoder.configure_optimizers(), dict), (
+        f"Expected a dict of optimizers and schedulers from config. Got: {type(decoder.configure_optimizers())}."
+    )
+    assert isinstance(decoder.configure_optimizers()["optimizer"], torch.optim.AdamW), (
+        f"Expected AdamW optimizer from config. Got: {type(decoder.configure_optimizers()['optimizer'])}."
+    )
+    assert isinstance(decoder.configure_optimizers()["lr_scheduler"], dict), (
+        f"Expected a dict of schedulers from config. Got: {type(decoder.configure_optimizers()['lr_scheduler'])}."
+    )
     assert isinstance(
         decoder.configure_optimizers()["lr_scheduler"]["scheduler"],
         torch.optim.lr_scheduler.StepLR,
-    ), f"Expected StepLR scheduler from config. Got: {type(decoder.configure_optimizers()['lr_scheduler']['scheduler'])}."
+    ), (
+        f"Expected StepLR scheduler from config. Got: {type(decoder.configure_optimizers()['lr_scheduler']['scheduler'])}."
+    )
 
-    assert (
-        decoder.output_channels == 1
-    ), f"Expected output_channels to be 1. Got: {decoder.output_channels}."
+    assert decoder.output_channels == 1, (
+        f"Expected output_channels to be 1. Got: {decoder.output_channels}."
+    )
     assert decoder.patch_size == (
         16,
         16,
     ), f"Expected patch_size to be (16, 16). Got: {decoder.patch_size}."
-    assert (
-        decoder.feature_channels == 128
-    ), f"Expected feature_channels to be 128. Got: {decoder.feature_channels}."
-    assert (
-        decoder.head_channels == 64
-    ), f"Expected head_channels to be 64. Got: {decoder.head_channels}."
-    assert (
-        decoder.align_corners is True
-    ), f"Expected align_corners to be True. Got: {decoder.align_corners}."
+    assert decoder.feature_channels == 128, (
+        f"Expected feature_channels to be 128. Got: {decoder.feature_channels}."
+    )
+    assert decoder.head_channels == 64, (
+        f"Expected head_channels to be 64. Got: {decoder.head_channels}."
+    )
+    assert decoder.align_corners is True, (
+        f"Expected align_corners to be True. Got: {decoder.align_corners}."
+    )
 
     print("[OK] DPTDecoder.from_config() test passed.")
 

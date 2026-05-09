@@ -11,7 +11,7 @@ from typing import Optional
 import pandas as pd
 import requests
 
-from VexDR.utils.logger import setup_logger
+from augur.utils.logger import setup_logger
 
 
 def create_ready_for_download_manifest(

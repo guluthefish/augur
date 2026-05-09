@@ -10,8 +10,8 @@ from torch.nn import functional as F
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.utils import get_lr_scheduler_from_config, get_optimizer_from_config
+from augur.models.model_abc import ModelABC
+from augur.models.utils import get_lr_scheduler_from_config, get_optimizer_from_config
 
 
 def _normalize_pair(

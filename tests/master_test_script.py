@@ -9,9 +9,8 @@ from .models import test_all_models
 from .models.tile_level import test_all_models_tile_level
 from .utils import test_all_utils
 
-
 if __name__ == "__main__":
-    parser = ArgumentParser(description="Run all unit tests for VexDR.")
+    parser = ArgumentParser(description="Run all unit tests for Augur.")
     parser.add_argument(
         "--datasets",
         action="store_true",

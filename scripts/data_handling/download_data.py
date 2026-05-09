@@ -1,6 +1,7 @@
 """Download GDC files using gdc-client based on prepared manifest TSVs."""
 
 from __future__ import annotations
+
 import logging
 import os
 import shutil
@@ -8,7 +9,7 @@ import subprocess
 import time
 from typing import Optional
 
-from VexDR.utils.logger import setup_logger
+from augur.utils.logger import setup_logger
 
 
 def download_data(
@@ -34,7 +35,7 @@ def download_data(
         - screen (stdout)
         - <root_dir>/logs/<timestamp>_download_data.log using standard logging handlers.
     - `gdc-client` also writes its own log file per manifest via `--log-file`.
-    - Additionally, this function streams the subprocess output (stdout/stderr merged) 
+    - Additionally, this function streams the subprocess output (stdout/stderr merged)
       into the Python logger.
 
     Parameters

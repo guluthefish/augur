@@ -7,7 +7,7 @@ Loads metrics from PyTorch Lightning CSV logs, merges every logged
 so convergence speed can be compared across pretext-task configurations
 (e.g. hematoxylin only, jigmag only, magnification only, or all three).
 
-Each model config is loaded with :func:`VexDR.utils.config.load_yaml_config`
+Each model config is loaded with :func:`augur.utils.config.load_yaml_config`
 just like :mod:`scripts.visualization.tile_embeddings` so the
 ``extends``-based composition works identically; the run's lightning_logs
 subdirectory is derived from the config's ``checkpoint_path`` stem.
@@ -24,7 +24,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from VexDR.utils.config import load_yaml_config
+from augur.utils.config import load_yaml_config
 
 _DEFAULT_LOGS_DIR = "outputs/model_training/lightning_logs"
 _DEFAULT_METRIC = "train/tissue_segmentation_loss"

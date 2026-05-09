@@ -1,4 +1,4 @@
-"""Common abstractions for Lightning models used in VexDR."""
+"""Common abstractions for Lightning models used in Augur."""
 
 from __future__ import annotations
 

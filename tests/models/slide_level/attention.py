@@ -6,8 +6,8 @@ from typing import Any, Callable
 
 import torch
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.slide_level.attention import Attention, GatedAttention
+from augur.models.model_abc import ModelABC
+from augur.models.slide_level.attention import Attention, GatedAttention
 
 
 def _assert_raises(
@@ -53,8 +53,7 @@ def _assert_attention_forward_contract(
     expected_attention_shape = (h.shape[0], model.num_heads, h.shape[1])
 
     assert aggregated.shape == expected_output_shape, (
-        f"Expected aggregated shape {expected_output_shape}. "
-        f"Got: {aggregated.shape}."
+        f"Expected aggregated shape {expected_output_shape}. Got: {aggregated.shape}."
     )
     assert attention_weights.shape == expected_attention_shape, (
         f"Expected attention weight shape {expected_attention_shape}. "
@@ -71,9 +70,9 @@ def _assert_attention_forward_contract(
     if mask is not None:
         expanded_mask = mask.bool().unsqueeze(1).expand_as(attention_weights)
         masked_weights = attention_weights.masked_select(~expanded_mask)
-        assert torch.all(
-            masked_weights == 0
-        ), "Masked tiles should receive zero attention weight."
+        assert torch.all(masked_weights == 0), (
+            "Masked tiles should receive zero attention weight."
+        )
 
     expected_aggregated = torch.einsum(
         "bmk,bkd->bmd",
@@ -109,13 +108,11 @@ def _test_init() -> None:
     )
 
     for model in (attention, gated_attention):
-        assert isinstance(
-            model, ModelABC
-        ), f"Expected {model.__class__.__name__} to inherit ModelABC."
+        assert isinstance(model, ModelABC), (
+            f"Expected {model.__class__.__name__} to inherit ModelABC."
+        )
         assert model.input_dim == 3, f"Expected input_dim=3. Got: {model.input_dim}."
-        assert (
-            model.hidden_dim == 5
-        ), f"Expected hidden_dim=5. Got: {model.hidden_dim}."
+        assert model.hidden_dim == 5, f"Expected hidden_dim=5. Got: {model.hidden_dim}."
         assert model.num_heads == 2, f"Expected num_heads=2. Got: {model.num_heads}."
         assert model.dropout == 0.25, f"Expected dropout=0.25. Got: {model.dropout}."
 
@@ -213,21 +210,19 @@ def _test_from_config() -> None:
 
     for model in (attention, gated_attention):
         assert model.input_dim == 3, f"Expected input_dim=3. Got: {model.input_dim}."
-        assert (
-            model.hidden_dim == 5
-        ), f"Expected hidden_dim=5. Got: {model.hidden_dim}."
+        assert model.hidden_dim == 5, f"Expected hidden_dim=5. Got: {model.hidden_dim}."
         assert model.num_heads == 2, f"Expected num_heads=2. Got: {model.num_heads}."
         assert model.dropout == 0.1, f"Expected dropout=0.1. Got: {model.dropout}."
-        assert (
-            model.optimizer_factory is torch.optim.AdamW
-        ), f"Expected AdamW optimizer factory. Got: {model.optimizer_factory}."
+        assert model.optimizer_factory is torch.optim.AdamW, (
+            f"Expected AdamW optimizer factory. Got: {model.optimizer_factory}."
+        )
         assert model.optimizer_kwargs == {
             "lr": 5e-4,
             "weight_decay": 0.01,
         }, f"Expected AdamW kwargs from config. Got: {model.optimizer_kwargs}."
-        assert (
-            model.lr_scheduler_factory is torch.optim.lr_scheduler.StepLR
-        ), f"Expected StepLR scheduler factory. Got: {model.lr_scheduler_factory}."
+        assert model.lr_scheduler_factory is torch.optim.lr_scheduler.StepLR, (
+            f"Expected StepLR scheduler factory. Got: {model.lr_scheduler_factory}."
+        )
         assert model.lr_scheduler_kwargs == {
             "step_size": 3,
             "gamma": 0.5,
@@ -241,7 +236,9 @@ def _test_from_config() -> None:
         assert isinstance(
             optimizers["optimizer"],
             torch.optim.AdamW,
-        ), f"Expected AdamW optimizer from config. Got: {type(optimizers['optimizer'])}."
+        ), (
+            f"Expected AdamW optimizer from config. Got: {type(optimizers['optimizer'])}."
+        )
         assert isinstance(
             optimizers["lr_scheduler"]["scheduler"],
             torch.optim.lr_scheduler.StepLR,

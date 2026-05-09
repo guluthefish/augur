@@ -1,8 +1,8 @@
-"""Tests for VexDR/utils/config.py."""
+"""Tests for augur/utils/config.py."""
 
 from torch import device
 
-from VexDR.utils.config import load_yaml_config
+from augur.utils.config import load_yaml_config
 
 
 def _test_load_yaml_config():
@@ -54,7 +54,7 @@ def _test_load_yaml_config():
 
 
 def test_all_utils_config():
-    """Run all tests in VexDR/utils/config.py."""
+    """Run all tests in augur/utils/config.py."""
     print("Running all config tests...")
     _test_load_yaml_config()
     print("All config tests passed!")

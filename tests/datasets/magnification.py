@@ -6,12 +6,12 @@ import random
 import numpy as np
 from openslide import OpenSlide
 
-from VexDR.datasets.magnification import process_magnification_task
-from VexDR.datasets.utils import (
+from augur.datasets.magnification import process_magnification_task
+from augur.datasets.utils import (
     load_slide_records,
-    tile_record_center_l0,
     resolve_manifest_path,
     sample_tile_records,
+    tile_record_center_l0,
 )
 
 

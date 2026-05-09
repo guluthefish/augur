@@ -1,4 +1,4 @@
-"""Utility functions for handling manifest paths in VexDR datasets."""
+"""Utility functions for handling manifest paths in Augur datasets."""
 
 from dataclasses import dataclass
 import logging

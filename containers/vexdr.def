@@ -2,12 +2,12 @@ Bootstrap: docker
 From: mambaorg/micromamba:2.5.0
 
 %files
-    envs/vexdr.yaml /opt/IMGEN/envs/vexdr.yaml
+    envs/augur.yaml /opt/IMGEN/envs/augur.yaml
     .env /opt/IMGEN/.env
     setup.py /opt/IMGEN/setup.py
     pyproject.toml /opt/IMGEN/pyproject.toml
     README.md /opt/IMGEN/README.md
-    VexDR /opt/IMGEN/VexDR
+    augur /opt/IMGEN/augur
 
 %post
     export MAMBA_ROOT_PREFIX=/opt/conda
@@ -15,16 +15,16 @@ From: mambaorg/micromamba:2.5.0
     apt-get update
     apt-get install -y --no-install-recommends rsync
     rm -rf /var/lib/apt/lists/*
-    micromamba create -y -n vexdr -f /opt/IMGEN/envs/vexdr.yaml
-    micromamba run -n vexdr python -m pip install --no-cache-dir --no-build-isolation --no-deps /opt/IMGEN
+    micromamba create -y -n augur -f /opt/IMGEN/envs/augur.yaml
+    micromamba run -n augur python -m pip install --no-cache-dir --no-build-isolation --no-deps /opt/IMGEN
     micromamba clean --all --yes
     rm -rf /opt/conda/pkgs
 
 %environment
     # Make the env the default
     export MAMBA_ROOT_PREFIX=/opt/conda
-    export PATH=/opt/conda/envs/vexdr/bin:$PATH
+    export PATH=/opt/conda/envs/augur/bin:$PATH
 
 %runscript
     # Any command passed to `apptainer run` will execute inside the env
-    exec micromamba run -n vexdr "$@"
+    exec micromamba run -n augur "$@"

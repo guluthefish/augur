@@ -27,15 +27,15 @@ from torch.nn import functional as F
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.slide_level.attention import Attention, GatedAttention
-from VexDR.models.tile_level.tile_model import TileModel
-from VexDR.models.utils import (
+from augur.models.model_abc import ModelABC
+from augur.models.slide_level.attention import Attention, GatedAttention
+from augur.models.tile_level.tile_model import TileModel
+from augur.models.utils import (
     get_lr_scheduler_from_config,
     get_optimizer_from_config,
 )
-from VexDR.utils.config import load_yaml_config
-from VexDR.utils.metrics import (
+from augur.utils.config import load_yaml_config
+from augur.utils.metrics import (
     compute_classification_loss,
     compute_regression_loss,
 )
@@ -227,12 +227,16 @@ class _DualCLAMBase(nn.Module):
         # zero-param slot avoids DDP "unused parameters" deadlocks.
         num_main_classes = int(output_dims[main_task])
         self.unknown_class_index = unknown_class_index
-        self.instance_classifiers = nn.ModuleList([
-            nn.Identity()
-            if unknown_class_index is not None and c == unknown_class_index
-            else nn.Linear(self.projection_dim, 2)
-            for c in range(num_main_classes)
-        ])
+        self.instance_classifiers = nn.ModuleList(
+            [
+                (
+                    nn.Identity()
+                    if unknown_class_index is not None and c == unknown_class_index
+                    else nn.Linear(self.projection_dim, 2)
+                )
+                for c in range(num_main_classes)
+            ]
+        )
 
     def train(self: _DualCLAMBase, mode: bool = True) -> _DualCLAMBase:
         """Keep a frozen encoder in eval mode even when the parent is training."""
@@ -297,7 +301,9 @@ class _DualCLAMBase(nn.Module):
                 features = self._get_last_features(self.encoder(flat))
             else:
                 feature_chunks = [
-                    self._get_last_features(self.encoder(flat[start : start + chunk_size]))
+                    self._get_last_features(
+                        self.encoder(flat[start : start + chunk_size])
+                    )
                     for start in range(0, flat.shape[0], chunk_size)
                 ]
                 features = torch.cat(feature_chunks, dim=0)
@@ -561,7 +567,9 @@ class DualCLAM(ModelABC):
         main_task_kwargs_init = (task_kwargs or {}).get(main_task, {})
         if not isinstance(main_task_kwargs_init, dict):
             raise TypeError(f"task_kwargs['{main_task}'] must be a dict if provided.")
-        backbone_unknown_class_index = main_task_kwargs_init.get("unknown_class_index", 0)
+        backbone_unknown_class_index = main_task_kwargs_init.get(
+            "unknown_class_index", 0
+        )
         if backbone_unknown_class_index is not None and (
             not isinstance(backbone_unknown_class_index, int)
             or backbone_unknown_class_index < 0

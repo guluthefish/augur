@@ -6,7 +6,7 @@ from typing import Any
 
 import torch
 
-from VexDR.models.model_abc import ModelABC
+from augur.models.model_abc import ModelABC
 
 
 class _DummyModel(ModelABC):
@@ -55,26 +55,26 @@ def _test_shared_step_sync_dist_logging():
     batch = {"image": torch.randn(3, 3, 8, 8)}
     loss = model._shared_step(batch, batch_idx=0, stage="val", on_step=False)
 
-    assert isinstance(
-        loss, torch.Tensor
-    ), "Expected _shared_step() to return a loss tensor."
-    assert (
-        logged_calls["log"]["kwargs"]["sync_dist"] is True
-    ), "Loss logging should synchronize across ranks when world_size > 1."
-    assert (
-        logged_calls["log_dict"]["kwargs"]["sync_dist"] is True
-    ), "Metric logging should synchronize across ranks when world_size > 1."
+    assert isinstance(loss, torch.Tensor), (
+        "Expected _shared_step() to return a loss tensor."
+    )
+    assert logged_calls["log"]["kwargs"]["sync_dist"] is True, (
+        "Loss logging should synchronize across ranks when world_size > 1."
+    )
+    assert logged_calls["log_dict"]["kwargs"]["sync_dist"] is True, (
+        "Metric logging should synchronize across ranks when world_size > 1."
+    )
 
     model._trainer = type("TrainerStub", (), {"world_size": 1})()  # type: ignore[attr-defined] pylint: disable=protected-access
     logged_calls.clear()
     model._shared_step(batch, batch_idx=0, stage="val", on_step=False)
 
-    assert (
-        logged_calls["log"]["kwargs"]["sync_dist"] is False
-    ), "Loss logging should stay local for single-process runs."
-    assert (
-        logged_calls["log_dict"]["kwargs"]["sync_dist"] is False
-    ), "Metric logging should stay local for single-process runs."
+    assert logged_calls["log"]["kwargs"]["sync_dist"] is False, (
+        "Loss logging should stay local for single-process runs."
+    )
+    assert logged_calls["log_dict"]["kwargs"]["sync_dist"] is False, (
+        "Metric logging should stay local for single-process runs."
+    )
     print("[OK] ModelABC distributed metric logging test passed.")
 
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 import torch
 from torchvision.models.resnet import BasicBlock
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.tile_level.resnet_encoder import ResNetEncoder
+from augur.models.model_abc import ModelABC
+from augur.models.tile_level.resnet_encoder import ResNetEncoder
 
 
 def _test_init():
@@ -20,9 +20,9 @@ def _test_init():
     )
 
     assert isinstance(encoder, ModelABC)
-    assert isinstance(
-        encoder.fc, torch.nn.Identity
-    ), f"Expected classifier head to be removed. Got: {type(encoder.fc)}."
+    assert isinstance(encoder.fc, torch.nn.Identity), (
+        f"Expected classifier head to be removed. Got: {type(encoder.fc)}."
+    )
     assert isinstance(encoder.configure_optimizers(), torch.optim.SGD)
     print("[OK] ResNetEncoder initialization test passed.")
 
@@ -43,31 +43,41 @@ def _test_forward():
         64,
         56,
         56,
-    ), f"The initial conv layer should produce 64 channels at 1/4 resolution. Expected shape: (2, 64, 56, 56). Got shape: {c0.shape}."
+    ), (
+        f"The initial conv layer should produce 64 channels at 1/4 resolution. Expected shape: (2, 64, 56, 56). Got shape: {c0.shape}."
+    )
     assert c1.shape == (
         2,
         64,
         56,
         56,
-    ), f"The first ResNet block should preserve the number of channels and resolution. Expected shape: (2, 64, 56, 56). Got shape: {c1.shape}."
+    ), (
+        f"The first ResNet block should preserve the number of channels and resolution. Expected shape: (2, 64, 56, 56). Got shape: {c1.shape}."
+    )
     assert c2.shape == (
         2,
         128,
         28,
         28,
-    ), f"The second ResNet block should double the number of channels and halve the resolution. Expected shape: (2, 128, 28, 28). Got shape: {c2.shape}."
+    ), (
+        f"The second ResNet block should double the number of channels and halve the resolution. Expected shape: (2, 128, 28, 28). Got shape: {c2.shape}."
+    )
     assert c3.shape == (
         2,
         256,
         14,
         14,
-    ), f"The third ResNet block should double the number of channels and halve the resolution. Expected shape: (2, 256, 14, 14). Got shape: {c3.shape}."
+    ), (
+        f"The third ResNet block should double the number of channels and halve the resolution. Expected shape: (2, 256, 14, 14). Got shape: {c3.shape}."
+    )
     assert c4.shape == (
         2,
         512,
         7,
         7,
-    ), f"The fourth ResNet block should double the number of channels and halve the resolution. Expected shape: (2, 512, 7, 7). Got shape: {c4.shape}."
+    ), (
+        f"The fourth ResNet block should double the number of channels and halve the resolution. Expected shape: (2, 512, 7, 7). Got shape: {c4.shape}."
+    )
 
     print("[OK] ResNetEncoder.forward() test passed.")
 
@@ -153,28 +163,32 @@ def _test_from_config():
     }
     encoder = ResNetEncoder.from_config(config)
 
-    assert isinstance(
-        encoder, ResNetEncoder
-    ), f"Expected a ResNetEncoder instance. Got: {type(encoder)}."
-    assert isinstance(
-        encoder.configure_optimizers(), dict
-    ), f"Expected a dict of optimizers and schedulers from config. Got: {type(encoder.configure_optimizers())}."
-    assert isinstance(
-        encoder.configure_optimizers()["optimizer"], torch.optim.AdamW
-    ), f"Expected AdamW optimizer from config. Got: {type(encoder.configure_optimizers()['optimizer'])}."
+    assert isinstance(encoder, ResNetEncoder), (
+        f"Expected a ResNetEncoder instance. Got: {type(encoder)}."
+    )
+    assert isinstance(encoder.configure_optimizers(), dict), (
+        f"Expected a dict of optimizers and schedulers from config. Got: {type(encoder.configure_optimizers())}."
+    )
+    assert isinstance(encoder.configure_optimizers()["optimizer"], torch.optim.AdamW), (
+        f"Expected AdamW optimizer from config. Got: {type(encoder.configure_optimizers()['optimizer'])}."
+    )
     assert isinstance(
         encoder.configure_optimizers()["lr_scheduler"],
         dict,
-    ), f"Expected a dict of scheduler and metadata from config. Got: {type(encoder.configure_optimizers()['lr_scheduler'])}."
+    ), (
+        f"Expected a dict of scheduler and metadata from config. Got: {type(encoder.configure_optimizers()['lr_scheduler'])}."
+    )
     assert isinstance(
         encoder.configure_optimizers()["lr_scheduler"]["scheduler"],
         torch.optim.lr_scheduler.ReduceLROnPlateau,
-    ), f"Expected ReduceLROnPlateau scheduler from config. Got: {type(encoder.configure_optimizers()['lr_scheduler'])}."
+    ), (
+        f"Expected ReduceLROnPlateau scheduler from config. Got: {type(encoder.configure_optimizers()['lr_scheduler'])}."
+    )
 
     # We can also test that the learning rate scheduler is properly configured by checking the internal attributes of the encoder.
-    assert (
-        encoder.lr_scheduler_factory is torch.optim.lr_scheduler.ReduceLROnPlateau
-    ), f"Expected ReduceLROnPlateau scheduler factory. Got: {encoder.lr_scheduler_factory}."
+    assert encoder.lr_scheduler_factory is torch.optim.lr_scheduler.ReduceLROnPlateau, (
+        f"Expected ReduceLROnPlateau scheduler factory. Got: {encoder.lr_scheduler_factory}."
+    )
     assert encoder.lr_scheduler_kwargs == {
         "patience": 2,
         "factor": 0.5,

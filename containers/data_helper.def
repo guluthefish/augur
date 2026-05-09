@@ -6,7 +6,7 @@ From: mambaorg/micromamba:2.5.0
     setup.py /opt/IMGEN/setup.py
     pyproject.toml /opt/IMGEN/pyproject.toml
     README.md /opt/IMGEN/README.md
-    VexDR /opt/IMGEN/VexDR
+    augur /opt/IMGEN/augur
 
 %post
     export MAMBA_ROOT_PREFIX=/opt/conda

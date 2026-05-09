@@ -15,11 +15,11 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from VexDR.datasets.dataset_abc import DatasetABC
-from VexDR.datasets.hematoxylin import process_hematoxylin_task
-from VexDR.datasets.jigmag import process_jigmag_task
-from VexDR.datasets.magnification import process_magnification_task
-from VexDR.datasets.utils import (
+from augur.datasets.dataset_abc import DatasetABC
+from augur.datasets.hematoxylin import process_hematoxylin_task
+from augur.datasets.jigmag import process_jigmag_task
+from augur.datasets.magnification import process_magnification_task
+from augur.datasets.utils import (
     TileRecord,
     SlideRecord,
     as_image_tensor,
@@ -35,8 +35,7 @@ from VexDR.datasets.utils import (
     sample_tile_records,
     split_slide_records,
 )
-from VexDR.utils.logger import setup_logger
-
+from augur.utils.logger import setup_logger
 
 SUPPORTED_TASKS = (
     "tissue_segmentation",

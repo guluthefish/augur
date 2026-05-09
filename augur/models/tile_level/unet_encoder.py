@@ -8,8 +8,8 @@ from torch import Tensor, nn
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-from VexDR.models.model_abc import ModelABC
-from VexDR.models.utils import (
+from augur.models.model_abc import ModelABC
+from augur.models.utils import (
     get_lr_scheduler_from_config,
     get_optimizer_from_config,
 )

@@ -12,7 +12,7 @@
 set -eu
 
 REPO="/tudelft.net/staff-umbrella/IMGEN"
-IMG="$REPO/containers/vexdr.sif"
+IMG="$REPO/containers/augur.sif"
 OUTDIR="$REPO/slurm/output"
 
 CONFIG_DIR="$REPO/configs"
@@ -50,7 +50,7 @@ case "$ENCODER_ARCHITECTURE" in
         --env HF_HOME=/tmp/huggingface \
         --pwd /work \
         "$IMG" \
-        /opt/conda/envs/vexdr/bin/python -c "
+        /opt/conda/envs/augur/bin/python -c "
 from dotenv import load_dotenv
 load_dotenv()
 import timm
@@ -77,7 +77,7 @@ srun apptainer exec \
     --env TORCH_NCCL_ASYNC_ERROR_HANDLING=1 \
     --pwd /work \
     "$IMG" \
-    /opt/conda/envs/vexdr/bin/python scripts/model_training/train_slide_aggregator.py \
+    /opt/conda/envs/augur/bin/python scripts/model_training/train_slide_aggregator.py \
     --config-dir "$CONFIG_DIR" \
     --training-config "$TRAINING_CFG" \
     --data-config "$DATA_CFG" \
