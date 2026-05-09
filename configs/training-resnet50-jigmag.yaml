@@ -1,0 +1,30 @@
+seed: 42
+test_after_fit: true
+enable_lr_monitor: true
+trainer:
+  accelerator: gpu
+  devices: 2
+  strategy: ddp
+  num_nodes: 1
+  sync_batchnorm: true
+  max_epochs: 100
+  precision: 16-mixed
+  default_root_dir: outputs/model_training
+  run_name: resnet50-jigmag
+  log_every_n_steps: 5
+  fast_dev_run: false
+  accumulate_grad_batches: 4
+  limit_train_batches: 1.0
+  limit_val_batches: 1.0
+  limit_test_batches: 1.0
+  num_sanity_val_steps: 2
+checkpoint:
+  monitor: val/loss
+  mode: min
+  save_top_k: 5
+  save_last: true
+  every_n_epochs: 5
+  filename: resnet50-jigmag-{epoch:02d}
+logger:
+  save_dir: outputs/model_training/lightning_logs
+  name: resnet50-jigmag

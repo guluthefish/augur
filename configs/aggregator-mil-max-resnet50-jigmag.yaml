@@ -1,0 +1,11 @@
+extends: common-params.yaml
+name: EmbeddingMIL
+params:
+  tile_model_config: model-resnet50-jigmag.yaml
+  enc_dim: 2048
+  aggregation_method: max
+  main_task: subtyping
+  hidden_dims: [256, 128]
+  output_dim: 8
+  dropout: 0.2
+checkpoint_path: checkpoints/mil-max-resnet50-jigmag.pth

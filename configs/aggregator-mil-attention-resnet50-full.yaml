@@ -1,0 +1,16 @@
+extends: common-params.yaml
+name: EmbeddingMIL
+params:
+  tile_model_config: model-resnet50-full.yaml
+  enc_dim: 2048
+  aggregation_method: attention
+  main_task: subtyping
+  hidden_dims: [256, 128]
+  output_dim: 8
+  dropout: 0.2
+  attn_kwargs:
+    hidden_dim: 256
+    num_heads: 1
+    dropout: 0.25
+    gated: false
+checkpoint_path: checkpoints/mil-attention-resnet50-full.pth

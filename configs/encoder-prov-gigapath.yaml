@@ -1,0 +1,5 @@
+extends: common-params.yaml
+name: ViTEncoder
+params:
+  model_name: "hf_hub:prov-gigapath/prov-gigapath"
+  pretrained: true

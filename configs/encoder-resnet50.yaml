@@ -1,0 +1,6 @@
+extends: common-params.yaml
+name: ResNetEncoder
+params:
+  block_name: Bottleneck
+  layers: [3, 4, 6, 3]
+  pretrained: resnet50

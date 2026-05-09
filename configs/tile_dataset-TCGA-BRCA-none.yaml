@@ -1,0 +1,22 @@
+name: TCGATileDataset
+params:
+  root_dir: data/TCGA-BRCA
+  tasks: [tissue_segmentation]
+  tile_size: 512
+  image_size: 224
+  base_mpp: 0.25
+  magnification_mpps: [0.25, 0.5, 1.0, 2.0]
+  jigmag_mpps: [0.25, 0.5, 1.0, 2.0]
+  tiles_per_slide: 64
+  min_tissue_fraction: 0.25
+  thumbnail_max_size: 1024
+  white_threshold: 0.8
+  train_fraction: 0.7
+  val_fraction: 0.15
+  test_fraction: 0.15
+  train_budget: 0.4
+  val_budget: 0.2
+  test_budget: 0.4
+  random_seed: 42
+  batch_size: 8
+  num_workers: 2
