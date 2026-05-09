@@ -1,0 +1,124 @@
+\section{Related Work}\label{sec:related}
+
+\subsection{Genotype, subtype, and morphology}\label{sec:related/genotype-morphology}
+
+The literature supports a hierarchical view of the genotype-morphology relationship, from near-obligate, mechanistically-traceable lesions at the top to point mutations with no recognizable imprint at the bottom.
+
+At the top, a small set of genes produce near-pathognomonic morphology in their
+tissue context.
+CDH1 loss disrupts adherens junctions, producing single-cell discohesion characteristic of invasive lobular carcinoma~\cite{frixenEcadherinmediatedCellcellAdhesion1991, derksenSomaticInactivationEcadherin2006}.
+VHL loss stabilizes HIF, which induces PLIN2 to package lipid droplets~\cite{qiuHIF2aDependentLipidStorage2015} and represses CPT1A to block fatty acid oxidation~\cite{duHIFDrivesLipid2017}; together with HIF-driven glycogen accumulation~\cite{chenGYS1InducesGlycogen2020, pescadorHypoxiaPromotesGlycogen2010}, this produces the clear cytoplasm of clear cell renal cell carcinoma.
+PML-RAR$\alpha$ arrests myeloid maturation at the promyelocyte stage through enhanced corepressor/HDAC recruitment~\cite{grignaniFusionProteinsRetinoic1998, linRoleHistoneDeacetylase1998}, producing the hypergranular promyelocytes with faggot cells that define acute promyelocytic leukemia~\cite{swerdlowWHOClassificationTumours, sehgalAuerRodsFaggot2023}.
+MYC deregulation couples proliferation with apoptosis~\cite{evanInductionApoptosisFibroblasts1992, eischenDisruptionARFMdm21999}; combined with cooperating mutations, it produces Burkitt lymphoma~\cite{schmitzBurkittLymphomaPathogenesis2012}, where high cell turnover generates the characteristic starry-sky pattern of tingible-body macrophages clearing apoptotic cells~\cite{swerdlowWHOClassificationTumours, dy-ledesmaStarrySkyPattern2016}.
+The same single-lesion-to-recognizable-morphology pattern recurs across many tumor types:
+the DNAJB1-PRKACA fusion is present in essentially all fibrolamellar hepatocellular carcinomas and produces their defining lamellar-fibrosis architecture~\cite{craigFibrolamellarCarcinomaLiver1980, honeymanDetectionRecurrentDNAJB1PRKACA2014}; 
+germline FH mutation followed by somatic loss of the second allele drives fumarate accumulation and is associated with the inclusion-like nucleolar morphology recognized as the hallmark of HLRCC RCC~\cite{tomlinsonGermlineMutationsFH2002, merinoMorphologicSpectrumKidney2007}; 
+and the ETV6-NTRK3 fusion produces the microcystic, secretion-rich morphology of mammary analogue secretory carcinoma~\cite{tognonExpressionETV6NTRK3Gene2002, skalovaMammaryAnalogueSecretory2010}. In each case a single defining lesion either disrupts a tissue-specific differentiation program or imposes an obligatory metabolic or architectural phenotype, producing morphology that a pathologist can recognize at low magnification.
+
+Beneath this layer, the link weakens from obligate to probabilistic: a tumor in a given subtype is enriched for a recognizable morphologic cluster, but the same morphology can arise outside the subtype, and a tumor of that subtype can present without it. In breast cancer, the PAM50 intrinsic subtypes~\cite{parkerSupervisedRiskPredictor2009} partition tumors along an axis of luminal differentiation: luminal tumors retain expression of ESR1, GATA3, and FOXA1 and are typically low-to-intermediate grade, while basal-like tumors lose this program (with frequent TP53 inactivation and basal-cytokeratin expression) and present as high-grade carcinomas~\cite{koboldtComprehensiveMolecularPortraits2012}, often with medullary-like features including geographic necrosis and prominent tumor-infiltrating lymphocytes~\cite{livasyPhenotypicEvaluationBasallike2006}. 
+Deep learning models can partially recover this molecular signal from H\&E images: as a binary basal-vs-non-basal call with $\approx$77\% accuracy~\cite{coutureImageAnalysisDeep2018}, and as a four-class call with $\approx$66\% accuracy~\cite{jaberDeepLearningImagebased2020}.
+In colorectal cancer, the four consensus molecular subtypes (CMS1--4)~\cite{guinneyConsensusMolecularSubtypes2015} are characterized by distinct molecular programs: MSI-driven hypermutation and immune activation in CMS1, WNT/MYC signaling in CMS2, KRAS-driven metabolic dysregulation in CMS3, and TGF-$\beta$ activation with stromal infiltration in CMS4. These programs leave morphologic signatures recognizable on H\&E:\@
+CMS1 tumors show dense lymphocytic infiltrates with Crohn-like peritumoral reaction, while CMS4 tumors show prominent desmoplastic stroma and infiltrative growth with tumor budding~\cite{trinhPracticalRobustIdentification2017}.
+The imCMS classifier of Sirinukunwattana et al.~\cite{sirinukunwattanaImagebasedConsensusMolecular2021} makes this morpho-molecular link explicit, predicting CMS labels from H\&E sections at macro-AUROC $\approx$0.84 on held-out cohorts.
+In endometrial cancer, the four TCGA molecular classes~\cite{levineIntegratedGenomicCharacterization2013} cluster along axes of mutational load and chromosomal stability: POLE-ultramutated and MSI/MMRd hypermutated tumors carry high neoantigen loads and dense TIL infiltrates~\cite{howittAssociationPolymeraseEMutated2015}, while p53-abnormal copy-number-high tumors display the marked nuclear atypia and serous-like architecture characteristic of extensive somatic copy-number alteration. 
+Pathologist discordance in distinguishing high-grade endometrioid from serous histology motivated the molecular reclassification~\cite{gilksPoorInterobserverReproducibility2013}, and recent work has shown that all four classes can be approximated directly from H\&E using deep learning (im4MEC,~\cite{fremondInterpretableDeepLearning2023}), which forms a component of the HECTOR recurrence prognosticator of Volinsky-Fremond et al.~\cite{volinsky-fremondPredictionRecurrenceRisk2024}.
+The same pattern recurs in thyroid cancer, where BRAF V600E drives strong MAPK activation and the classic papillary architecture with optically clear nuclei and psammoma bodies of conventional papillary thyroid carcinoma, whereas RAS-family mutations produce weaker MAPK signaling and a predominantly follicular-pattern morphology~\cite{agrawalIntegratedGenomicCharacterization2014}; and in small cell lung cancer, where the ASCL1-, NEUROD1-, POU2F3-, and YAP1-defined transcriptional subtypes reflect distinct cell-of-origin and differentiation programs that translate into subtle but reproducible morphologic differences~\cite{rudinMolecularSubtypesSmall2019}.
+In each case the morphology emerges from the aggregate effect of co-occurring alterations and the transcriptional program they engage; no single mutation suffices to produce it. 
+This is why subtype prediction from H\&E is consistently more reproducible across cohorts than individual-mutation prediction, even when the same model architecture is used for both targets~\cite{katherPancancerImagebasedDetection2020, arslanSystematicPancancerStudy2024}.
+
+
+% PAM50 intrinsic subtypes in breast~\cite{coutureImageAnalysisDeep2018, jaberDeepLearningImagebased2020}, consensus molecular subtypes (CMS) in colorectal cancer~\cite{sirinukunwattanaImagebasedConsensusMolecular2021}, the TCGA endometrial molecular classes~\cite{volinsky-fremondPredictionRecurrenceRisk2024}, BRAF/RAS-like signatures in thyroid cancer~\cite{agrawalIntegratedGenomicCharacterization2014}, and the ASCL1/NEUROD1/POU2F3/YAP1-I transcriptional subtypes in small cell lung cancer~\cite{rudinMolecularSubtypesSmall2019}.
+
+% Below subtype, individual driver mutations within a subtype produce subtler morphology that often requires deep learning to extract reliably (TP53, EGFR, KRAS, FGFR3, and aggregate genomic-instability features such as homologous recombination deficiency).
+
+% At the bottom of the hierarchy, most somatic point mutations have no human-recognizable morphologic signature and are predictable from H\&E only via cell-of-origin, subtype enrichment, or coincidental association with a more morphologically penetrant alteration.
+
+% A consequence of this hierarchy, central to the present work, is that any single somatic point mutation is unlikely to leave a reproducible H\&E imprint on its own.
+% The morphologic phenotypes that are routinely recovered from H\&E correspond either to an obligate consequence of a specific lesion (CDH1, VHL, PML-RAR$\alpha$) or to the \emph{aggregate} action of many co-occurring alterations that push tissue architecture in correlated directions (subtype-level signal; HRD-induced chromosomal instability; replication-associated proliferative phenotypes).
+% This motivates predicting morphology from \emph{summary} representations of the somatic genome --- such as subtype assignments and mutational signature exposures --- rather than from the presence or absence of individual point mutations.
+
+% \subsection{Deep learning on whole slide images}\label{sec:related/dl-wsi}
+
+% The introduction (Section~\ref{sec:intro}) reviewed the broad trajectory of deep learning in computational pathology: the CNN-MIL era~\cite{coudrayClassificationMutationPrediction2018, katherPancancerImagebasedDetection2020, fuPancancerComputationalHistopathology2020, ilseAttentionbasedDeepMultiple2018, luDataefficientWeaklySupervised2021, campanellaClinicalgradeComputationalPathology2019}, and the more recent shift to large self-supervised foundation encoders~\cite{chenGeneralpurposeFoundationModel2024, xuWholeslideFoundationModel2024, vorontsovVirchowMillionSlideDigital2024, filiotScalingSelfSupervisedLearning2024, luVisuallanguageFoundationModel2024}.
+% This subsection focuses on the methodological lineage most directly relevant to VexDR: weakly-supervised aggregation, multi-task and pretext-supervised learning, regression for continuous molecular targets, and attention disentanglement.
+
+% \paragraph{Weakly-supervised aggregation.}
+% Slide-level prediction from gigapixel WSIs is dominated by the multiple-instance learning (MIL) formulation, in which a slide is treated as a bag of tiles with a single bag-level label~\cite{ilseAttentionbasedDeepMultiple2018}.
+% Attention-based MIL replaces hand-crafted aggregation with a learned attention distribution over tiles and supplies post-hoc heat maps that purport to localize the morphological evidence behind each prediction.
+% CLAM~\cite{luDataefficientWeaklySupervised2021} adds an instance-clustering auxiliary loss to attention MIL, encouraging top-attended tiles to be class-discriminative and bottom-attended tiles to be uninformative; CLAM-MB further allocates one attention branch per output class, producing class-conditional attention maps.
+% TransMIL and related transformer-MIL hybrids replace gated attention with self-attention over tiles, improving long-range context at the cost of further-decoupled instance-level interpretability.
+% The fidelity of attention maps to underlying biology remains contested: high-attention regions are reproducibly informative for the supervised target but are not guaranteed to localize the mechanistic features a pathologist would highlight, and attention is sensitive to spurious site- and stain-specific shortcuts~\cite{niehuesGeneralizableBiomarkerPrediction2023, arslanSystematicPancancerStudy2024}.
+% VexDR builds directly on the CLAM-MB backbone and extends it with one additional attention branch per pretext SBS task, so that each branch's attention map is anchored to a specific molecular target rather than to a single bag-level label.
+
+% \paragraph{Multi-task and pretext supervision.}
+% Most early genotype-from-H\&E work treated each molecular target as an independent binary classification, using one model per gene or per status~\cite{coudrayClassificationMutationPrediction2018, katherPancancerImagebasedDetection2020}.
+% Multi-task variants then pooled correlated targets (subtype, MSI, hormone-receptor status) under a shared encoder to exploit covariance between targets and to amortize WSI compute.
+% Pretext-task formulations go further: an auxiliary head supplies dense or vector-valued supervision intended primarily to shape the encoder's representations rather than to be the deployment target.
+% Within computational pathology, common pretext signals include nuclei segmentation, magnification prediction, jigsaw-style position prediction, and stain-channel reconstruction; outside pathology, contrastive and masked-image-modeling pretexts now dominate.
+% VexDR uses SBS exposures as a vector pretext signal anchored on top of the main subtype-classification task: the multi-task structure forces the slide representation to be jointly consistent with a discrete subtype label and a continuous, multi-output mutational-process profile.
+
+% \paragraph{Regression for continuous molecular targets.}
+% A substantial fraction of clinically actionable molecular features are inherently continuous --- HRD scores, tumor mutational burden, signature exposures, expression-derived risk scores --- yet are commonly binarized at a clinical cut-off before training.
+% Wagner et al.~\cite{wagnerTransformerbasedBiomarkerPrediction2023} and subsequent regression-based MIL frameworks show that continuous supervision can outperform thresholded classification for HRD- and signature-like targets, both in calibration and in the granularity of downstream attention maps.
+% VexDR adopts the same continuous-supervision philosophy for its SBS pretext: the network regresses an exposure vector (with optional thresholded/ranked variants for ablation), preserving the relative magnitudes of co-active signatures rather than collapsing them into a binary HRD-positive label.
+
+% \paragraph{Attention disentanglement and explainability.}
+% Hierarchical attention, joint vision-language pre-training~\cite{luVisuallanguageFoundationModel2024}, and patch-level pooling complicate post-hoc attribution to specific morphological structures, and large-scale pre-training does not by itself guarantee that the features driving a prediction correspond to the biology a pathologist would recognize.
+% Per-class attention branches (CLAM-MB) and concept-bottleneck variants attempt to factor a single attention map into class-conditional or concept-conditional components.
+% The architectural contribution of VexDR is to extend per-class branching to per-\emph{process} branching: in addition to one branch per subtype class, the model allocates one attention branch per pretext SBS process, producing process-resolved attention maps that can be inspected separately for, e.g., the APOBEC, HR-deficiency, and clock-like components.
+
+% \subsection{Mutational landmarks in breast cancer}
+% \label{sec:related/breast-mutations}
+
+% Breast cancer is the most extensively studied indication for H\&E-based molecular prediction, and provides the closest precedent for the present work.
+% We organize prior efforts by the molecular target: intrinsic subtypes, individual driver-gene status, and aggregate genomic-instability features --- with the last category most directly overlapping VexDR.
+
+% \paragraph{Intrinsic subtypes.}
+% Couture et al.~\cite{coutureImageAnalysisDeep2018} were among the first to predict the four-class PAM50 intrinsic subtype from H\&E using CNNs trained on tissue microarrays, reporting basal-versus-non-basal accuracy near 77\% and ductal-versus-lobular accuracy near 94\%.
+% Naik et al.~\cite{naikDeepLearningenabledBreast2020} extended this to whole-slide images and showed that within-slide heterogeneity in predicted PAM50 subtype is itself prognostically informative.
+% Subsequent foundation-model-based subtypers~\cite{luVisuallanguageFoundationModel2024, chenGeneralpurposeFoundationModel2024} have pushed subtype AUROCs above 0.9 in zero-shot or few-shot settings.
+% The asymmetry highlighted in Section~\ref{sec:intro} --- that subtypes are markedly more predictable than any single mutation they enrich for --- is now an empirical regularity across breast cancer studies and underlies our choice of subtype as the \emph{main} task in VexDR rather than the pretext.
+
+% \paragraph{Individual driver-gene status.}
+% Pan-cancer mutation predictors~\cite{coudrayClassificationMutationPrediction2018, katherPancancerImagebasedDetection2020, fuPancancerComputationalHistopathology2020} typically report breast-cancer AUROCs in the 0.6--0.8 range for individual recurrent drivers (TP53, PIK3CA, GATA3).
+% TP53 has received specific attention because TP53-mutant breast cancers are enriched for high grade, basal-like phenotype, and chromosomal instability: dedicated TP53 predictors trained on TCGA-BRCA achieve moderate AUROCs but a recurring concern is that the predicted signal partly reflects the basal-like context in which TP53 mutations are enriched, rather than a TP53-specific morphology~\cite{naikDeepLearningenabledBreast2020}.
+% Within the genotype-morphology hierarchy of Section~\ref{sec:related/genotype-morphology}, this observation places most individual point-mutation predictors at the bottom layer: they recover predominantly cell-of-origin and subtype context rather than mutation-specific morphology.
+
+% \paragraph{Aggregate genomic-instability features and mutational signatures.}
+% The closest precedent for VexDR is the line of work that predicts \emph{aggregate} mutational-process features from H\&E, most prominently homologous-recombination deficiency (HRD).
+% HRD is itself a composite phenotype: it is most often defined operationally by the activity of COSMIC SBS3 (and the indel signature ID6), by genomic scar metrics (LOH, telomeric allelic imbalance, large-scale state transitions), or by combined HRD scores such as myChoice and Genomic LOH.
+% Lazard et al.~\cite{lazardDeepLearningIdentifies2022} train a deep MIL model to predict HRD status from H\&E in luminal breast cancers, after explicitly controlling for confounding by grade and tumor cellularity, and identify laminated fibrosis and clear tumor cell foci as morphological correlates of HRD.
+% DeepHRD (Bergstrom et al.~\cite{bergstromDeepLearningArtificial2024}) is a weakly-supervised MIL HRD predictor trained on TCGA-BRCA H\&E with external validation across breast and ovarian cohorts, reaching AUROC 0.81 and outperforming FDA-approved molecular HRD assays for predicting platinum-specific PFS.
+% The SuRe-Transformer~\cite{huBreastCancerHomologous2025} pushes HRD AUROC to 0.887 with a transformer-MIL backbone, and Schirris et al.~\cite{schirrisPredictionHomologousRecombination2024} demonstrate that an attention-MIL HRD predictor generalizes across nine tumor types.
+% Wagner et al.~\cite{wagnerTransformerbasedBiomarkerPrediction2023} show that regression-based MIL is preferable to thresholded classification for HRD-like continuous targets.
+
+% A second well-studied mutational process is APOBEC mutagenesis (COSMIC SBS2/SBS13), which is enriched in HER2-amplified breast cancers and in invasive lobular carcinoma~\cite{robertsAPOBECCytidineDeaminase2013}, suggesting that APOBEC activity has at least an indirect morphologic correlate via its subtype enrichment.
+% A small number of studies have begun to predict APOBEC-related summary scores from H\&E, but these have generally treated APOBEC as a binary high/low call rather than as a component of a multi-process exposure profile.
+% Microsatellite instability and POL$\epsilon$-driven hypermutation, both of which generate distinctive SBS signatures (SBS6/15/20/26 for MMR-deficiency; SBS10a/b for POL$\epsilon$), have been predicted from H\&E primarily in colorectal and endometrial cancers; their breast-cancer prevalence is too low for direct training on TCGA-BRCA.
+
+% \paragraph{Where VexDR sits.}
+% Three observations follow from the literature reviewed above.
+% First, prior work has shown convincingly that \emph{individual} mutational-process summaries --- HRD status, MSI status, TMB, occasionally APOBEC --- can be predicted from H\&E with clinically useful discrimination, validating the broader premise that summary genomic features leave reproducible morphologic imprints.
+% Second, this prior work has overwhelmingly treated each summary as a stand-alone, often-binarized target; we are not aware of any breast-cancer study that jointly predicts the \emph{full SBS exposure vector} (multiple co-active processes, on a continuous scale) alongside intrinsic subtype, with attention disentangled per process.
+% Third, available work treats genotype prediction as the deployment goal; VexDR instead positions SBS exposure prediction as an explanatory pretext on top of the clinically established subtype-classification task, with the explicit aim of using process-resolved attention maps as a hypothesis-generation tool for novel morphology-process associations not previously documented in wet-lab studies.
+
+% % ============================================================
+% % TODO: bib entries that need to be added to references.bib
+% % (suggested Zotero-style keys; verify against your library)
+% %
+% %   dy-ledesmaStarrySkyPattern2016
+% %       Dy-Ledesma JM et al., starry-sky pattern in Burkitt lymphoma
+% %   volinsky-fremondPredictionRecurrenceRisk2024
+% %       Volinsky-Fremond et al., endometrial ProMisE prediction (already
+% %       cited in introduction.tex; confirm key matches)
+% %   lazardDeepLearningIdentifies2022
+% %       Lazard et al., Cell Reports Medicine 2022, HRD luminal BRCA
+% %   bergstromDeepLearningArtificial2024
+% %       Bergstrom et al., JCO 2024, DeepHRD
+% %   huBreastCancerHomologous2025
+% %       npj Precision Oncology 2025, SuRe-Transformer for HRD in BRCA
+% %   schirrisPredictionHomologousRecombination2024
+% %       Schirris/Loeffler et al., BMC Biology 2024, attMIL HRD pan-cancer
+% %   robertsAPOBECCytidineDeaminase2013
+% %       Roberts et al., Nat Genet 2013, APOBEC mutagenesis in cancer
+% % ============================================================
