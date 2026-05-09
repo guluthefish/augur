@@ -1,0 +1,27 @@
+Bootstrap: docker
+From: mambaorg/micromamba:2.5.0
+
+%files
+    envs/data_helper.yaml /opt/IMGEN/envs/data_helper.yaml
+    setup.py /opt/IMGEN/setup.py
+    pyproject.toml /opt/IMGEN/pyproject.toml
+    README.md /opt/IMGEN/README.md
+    VexDR /opt/IMGEN/VexDR
+
+%post
+    export MAMBA_ROOT_PREFIX=/opt/conda
+    apt update
+    apt install -y rsync
+    micromamba create -y -n data_helper -f /opt/IMGEN/envs/data_helper.yaml
+    micromamba run -n data_helper python -m pip install --no-build-isolation --no-deps /opt/IMGEN
+    micromamba clean --all --yes
+
+%environment
+    # Make the env the default
+    export MAMBA_ROOT_PREFIX=/opt/conda
+    export SIGPROFILERMATRIXGENERATOR_VOLUME=./sigprofiler_volume/
+    export PATH=/opt/conda/envs/data_helper/bin:$PATH
+
+%runscript
+    # Any command passed to `apptainer run` will execute inside the env
+    exec micromamba run -n data_helper "$@"
