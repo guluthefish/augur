@@ -1,0 +1,28 @@
+name: vexdr
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - setuptools>=61
+  - wheel
+  - pytorch=2.5.1
+  - torchvision=0.20.1
+  - pytorch-cuda=12.4
+  - lightning=2.6.1
+  - numpy
+  - pandas=3.0.1
+  - pyyaml
+  - openslide-python=1.4.3
+  - timm=1.0.25
+  - python-dotenv=1.2.2
+  - matplotlib=3.10.7
+  - scikit-learn=1.8.0
+  - umap-learn=0.5.12
+  - pip:
+      - opencv-python-headless==4.13.0.92
+      - openslide-bin==4.0.0.13

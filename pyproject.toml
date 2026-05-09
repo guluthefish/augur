@@ -1,0 +1,10 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pylint.main]
+disable = [
+  "line-too-long",
+  "nested-min-max",
+  "invalid-name",
+]
