@@ -1,13 +1,13 @@
 #!/bin/sh
-#SBATCH --job-name=dual-sb
+#SBATCH --job-name=mil-gated-attention
 #SBATCH --gres=gpu:2
 #SBATCH --partition=general
 #SBATCH --qos=medium
 #SBATCH --time=1-12:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --output=slurm/output/dual-clam-sb-resnet50-full-%j.out
-#SBATCH --error=slurm/output/dual-clam-sb-resnet50-full-%j.err
+#SBATCH --output=slurm/output/mil-gated-attention-resnet50-full-%j.out
+#SBATCH --error=slurm/output/mil-gated-attention-resnet50-full-%j.err
 
 set -eu
 
@@ -18,7 +18,7 @@ OUTDIR="$REPO/slurm/output"
 CONFIG_DIR="$REPO/configs"
 TRAINING_CFG="training-aggregator.yaml"
 DATA_CFG="slide_dataset-TCGA-BRCA.yaml"
-AGGREGATOR_NAME="dual-clam-sb"
+AGGREGATOR_NAME="mil-gated-attention"
 ENCODER_ARCHITECTURE="resnet50"
 TILE_PRETEXT="full"
 export PYTHONPATH="/work${PYTHONPATH:+:$PYTHONPATH}"
