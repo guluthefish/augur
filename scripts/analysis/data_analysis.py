@@ -26,8 +26,8 @@ def get_mpp_statistics():
     for record in slide_records:
         slide = OpenSlide(record.slide_path)
         try:
-            mpp_x = float(slide.properties.get("openslide.mpp-x"))
-            mpp_y = float(slide.properties.get("openslide.mpp-y"))
+            mpp_x = float(slide.properties.get("openslide.mpp-x"))  # type: ignore
+            mpp_y = float(slide.properties.get("openslide.mpp-y"))  # type: ignore
             mppx_values.append(mpp_x)
             mppy_values.append(mpp_y)
         except (TypeError, ValueError):

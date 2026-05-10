@@ -1,14 +1,14 @@
 # Fdb version 4
-["bibtex main"] 1778267863.17123 "main.aux" "main.bbl" "main" 1778267865.78821 0
+["bibtex main"] 1778267863.17123 "main.aux" "main.bbl" "main" 1778414262.17341 0
   "./references.bib" 1778267802.07817 177128 4ee6f7e623a11ce673064d59456c1b5e ""
   "/usr/local/texlive/2025/texmf-dist/bibtex/bst/ieeetran/IEEEtran.bst" 1440712899 57748 7c8250ecf02814ce6ddc0cdbb63df1dd ""
-  "main.aux" 1778267865.51181 14464 8ecc39020bd2d946a2ea7b59335fcaa7 "pdflatex"
+  "main.aux" 1778414261.89832 14464 8ecc39020bd2d946a2ea7b59335fcaa7 "pdflatex"
   (generated)
   "main.bbl"
   "main.blg"
   (rewritten before read)
-["pdflatex"] 1778267863.29682 "/Users/guluthefish/2026/300-research/VexDR/report/main.tex" "main.pdf" "main" 1778267865.78837 0
-  "/Users/guluthefish/2026/300-research/VexDR/report/main.tex" 1778178602.07769 2008 012d3f00ece672fd0189f8d15f5a2d1a ""
+["pdflatex"] 1778414259.80977 "/Users/guluthefish/2026/300-research/augur/report/main.tex" "main.pdf" "main" 1778414262.1736 0
+  "/Users/guluthefish/2026/300-research/augur/report/main.tex" 1778178602.07769 2008 012d3f00ece672fd0189f8d15f5a2d1a ""
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/base/8r.enc" 1165713224 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/tfm/adobe/times/ptmb7t.tfm" 1136768653 2172 fd0c924230362ff848a33632ed45dc23 ""
@@ -168,9 +168,9 @@
   "images/resnet50-magnification_umap_encoder_model-prediction_top-5.png" 1777550000 2998572 d386bb650b209569b44579c565b7c707 ""
   "images/train_tile_learning_curves.png" 1777550002 116958 7f0cabaf498fcc24ba037d72f84ad64e ""
   "images/val_tile_learning_curves.png" 1777550000 136818 a1a5788de31090f1f43d9f23ff3d2980 ""
-  "main.aux" 1778267865.51181 14464 8ecc39020bd2d946a2ea7b59335fcaa7 "pdflatex"
+  "main.aux" 1778414261.89832 14464 8ecc39020bd2d946a2ea7b59335fcaa7 "pdflatex"
   "main.bbl" 1778267863.29393 39610 25b1d054bb58ae4b5a7ae52dfae2dcd7 "bibtex main"
-  "main.out" 1778267865.5129 3798 79c3944c54881bdb257756cd7a3721aa "pdflatex"
+  "main.out" 1778414261.89943 3798 79c3944c54881bdb257756cd7a3721aa "pdflatex"
   "main.tex" 1778178602.07769 2008 012d3f00ece672fd0189f8d15f5a2d1a ""
   "sections/conclusion.tex" 1777550000 37 82c83ca6f47eecc16d4832afd58cadbb ""
   "sections/discussion.tex" 1777550000 40 e3b3158bc05a40fcafd511ce171c86b3 ""
