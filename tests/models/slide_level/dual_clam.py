@@ -148,22 +148,22 @@ def _test_init() -> None:
         pretext_tasks=None,
         output_dims={"subtyping": num_subtype_classes},
     )
-    assert isinstance(model_sb, ModelABC), (
-        f"DualCLAM must inherit ModelABC. Got: {type(model_sb)}."
-    )
-    assert isinstance(model_sb.backbone, DualCLAM_SB), (
-        f"Expected DualCLAM_SB backbone. Got: {type(model_sb.backbone)}."
-    )
-    assert model_sb.backbone.num_heads == 1, (
-        f"SB must use num_heads=1. Got: {model_sb.backbone.num_heads}."
-    )
+    assert isinstance(
+        model_sb, ModelABC
+    ), f"DualCLAM must inherit ModelABC. Got: {type(model_sb)}."
+    assert isinstance(
+        model_sb.backbone, DualCLAM_SB
+    ), f"Expected DualCLAM_SB backbone. Got: {type(model_sb.backbone)}."
+    assert (
+        model_sb.backbone.num_heads == 1
+    ), f"SB must use num_heads=1. Got: {model_sb.backbone.num_heads}."
     assert model_sb.backbone.num_main_branches == 1
-    assert not model_sb.pretext_tasks, (
-        f"No-pretext model must have empty pretext_tasks. Got: {model_sb.pretext_tasks}."
-    )
-    assert isinstance(model_sb.backbone.attention_net, GatedAttention), (
-        "Default attention should be gated."
-    )
+    assert (
+        not model_sb.pretext_tasks
+    ), f"No-pretext model must have empty pretext_tasks. Got: {model_sb.pretext_tasks}."
+    assert isinstance(
+        model_sb.backbone.attention_net, GatedAttention
+    ), "Default attention should be gated."
     assert set(model_sb.backbone.heads.keys()) == {"subtyping"}, (
         "No-pretext model should only have the main head. "
         f"Got: {set(model_sb.backbone.heads.keys())}."
@@ -180,9 +180,9 @@ def _test_init() -> None:
         pretext_tasks=["sbs_regression"],
         output_dims={"subtyping": num_subtype_classes, "sbs_regression": 96},
     )
-    assert isinstance(model_sb_pretext.backbone, DualCLAM_SB), (
-        "multi_branch=False should keep the SB backbone even with pretext tasks."
-    )
+    assert isinstance(
+        model_sb_pretext.backbone, DualCLAM_SB
+    ), "multi_branch=False should keep the SB backbone even with pretext tasks."
     assert model_sb_pretext.backbone.num_heads == 1
     assert set(model_sb_pretext.backbone.heads.keys()) == {
         "subtyping",
@@ -201,18 +201,18 @@ def _test_init() -> None:
         multi_branch=True,
         gated=False,
     )
-    assert isinstance(model_mb.backbone, DualCLAM_MB), (
-        f"Expected DualCLAM_MB backbone. Got: {type(model_mb.backbone)}."
-    )
+    assert isinstance(
+        model_mb.backbone, DualCLAM_MB
+    ), f"Expected DualCLAM_MB backbone. Got: {type(model_mb.backbone)}."
     expected_num_heads = num_subtype_classes + 1
     assert model_mb.backbone.num_heads == expected_num_heads, (
         f"MB num_heads must equal num_subtype_classes + len(pretext_tasks) = "
         f"{expected_num_heads}. Got: {model_mb.backbone.num_heads}."
     )
     assert model_mb.backbone.num_main_branches == num_subtype_classes
-    assert isinstance(model_mb.backbone.attention_net, Attention), (
-        "Non-gated attention should use the plain Attention class."
-    )
+    assert isinstance(
+        model_mb.backbone.attention_net, Attention
+    ), "Non-gated attention should use the plain Attention class."
 
     # Branch layout puts the main task on the first num_main_branches and
     # appends one branch per pretext task.
@@ -291,9 +291,9 @@ def _test_real_data_no_pretext() -> None:
 
         assert loss.ndim == 0, f"Expected scalar loss. Got shape: {loss.shape}."
         assert torch.isfinite(loss), "Loss should be finite."
-        assert set(metrics.keys()) == {"subtyping_loss"}, (
-            f"Expected only subtyping_loss. Got: {set(metrics.keys())}."
-        )
+        assert set(metrics.keys()) == {
+            "subtyping_loss"
+        }, f"Expected only subtyping_loss. Got: {set(metrics.keys())}."
     finally:
         datamodule.teardown()
 
@@ -307,9 +307,9 @@ def _test_real_data_with_pretext_sb() -> None:
     datamodule, batch = _load_real_slide_batch(pretext_tasks=["sbs_regression"])
     try:
         expected_keys = {"image", "mask", "target", "sbs_regression", "metadata"}
-        assert set(batch.keys()) == expected_keys, (
-            f"Expected batch keys {expected_keys}. Got: {set(batch.keys())}."
-        )
+        assert (
+            set(batch.keys()) == expected_keys
+        ), f"Expected batch keys {expected_keys}. Got: {set(batch.keys())}."
 
         num_classes = datamodule.num_main_labels
         sbs_dim = datamodule.num_pretext_labels["sbs_regression"]
@@ -367,9 +367,9 @@ def _test_real_data_with_pretext_mb() -> None:
             output_dims={"subtyping": num_classes, "sbs_regression": sbs_dim},
             multi_branch=True,
         )
-        assert isinstance(model.backbone, DualCLAM_MB), (
-            f"multi_branch=True should select DualCLAM_MB. Got: {type(model.backbone)}."
-        )
+        assert isinstance(
+            model.backbone, DualCLAM_MB
+        ), f"multi_branch=True should select DualCLAM_MB. Got: {type(model.backbone)}."
         expected_num_heads = num_classes + 1
         assert model.backbone.num_heads == expected_num_heads
         assert model.backbone.num_main_branches == num_classes
@@ -427,9 +427,13 @@ def _test_instance_clustering_loss() -> None:
             "Should register one binary classifier per subtype class. "
             f"Got: {len(inst_classifiers)}."
         )
-        for cls in inst_classifiers:
-            assert isinstance(cls, nn.Linear)
-            assert cls.out_features == 2
+        unknown_class_index = model.backbone.unknown_class_index
+        for c, cls in enumerate(inst_classifiers):
+            if unknown_class_index is not None and c == unknown_class_index:
+                assert isinstance(cls, nn.Identity)
+            else:
+                assert isinstance(cls, nn.Linear)
+                assert cls.out_features == 2
 
         model.eval()
         with torch.no_grad():
@@ -439,9 +443,9 @@ def _test_instance_clustering_loss() -> None:
         assert isinstance(metrics, dict)
 
         assert torch.isfinite(loss)
-        assert "subtyping_instance_loss" in metrics, (
-            f"Expected subtyping_instance_loss in metrics. Got: {set(metrics.keys())}."
-        )
+        assert (
+            "subtyping_instance_loss" in metrics
+        ), f"Expected subtyping_instance_loss in metrics. Got: {set(metrics.keys())}."
         assert torch.isfinite(metrics["subtyping_instance_loss"])
     finally:
         datamodule.teardown()
@@ -560,14 +564,14 @@ def _test_from_config() -> None:
     )
     assert isinstance(minimal_model, DualCLAM)
     assert not minimal_model.backbone.has_encoder, "No tile_model implies encoder-less."
-    assert isinstance(minimal_model.backbone, DualCLAM_SB), (
-        "Default attn_kwargs.multi_branch=False should select the SB backbone."
-    )
+    assert isinstance(
+        minimal_model.backbone, DualCLAM_SB
+    ), "Default attn_kwargs.multi_branch=False should select the SB backbone."
     assert minimal_model.main_task == "subtyping"
     assert not minimal_model.pretext_tasks
-    assert not minimal_model.task_kwargs, (
-        f"Omitting task_kwargs should leave it empty. Got: {minimal_model.task_kwargs}."
-    )
+    assert (
+        not minimal_model.task_kwargs
+    ), f"Omitting task_kwargs should leave it empty. Got: {minimal_model.task_kwargs}."
 
     minimal_model.eval()
     bag = torch.randn(2, 3, 6)
@@ -608,9 +612,9 @@ def _test_from_config() -> None:
         },
     }
     full_model = DualCLAM.from_config(full_config)
-    assert isinstance(full_model.backbone, DualCLAM_MB), (
-        "multi_branch=True should select the MB backbone."
-    )
+    assert isinstance(
+        full_model.backbone, DualCLAM_MB
+    ), "multi_branch=True should select the MB backbone."
     expected_num_heads = 4 + 1  # output_dims[subtyping] + len(pretext_tasks)
     assert full_model.backbone.num_heads == expected_num_heads, (
         f"MB num_heads must equal num_main_branches + len(pretext_tasks) = "
@@ -627,9 +631,9 @@ def _test_from_config() -> None:
     }, f"Expected normalized task_weights. Got: {full_model.task_weights}."
 
     # task_kwargs stored unchanged.
-    assert full_model.task_kwargs == {"subtyping": {"unknown_class_index": 0}}, (
-        f"Expected task_kwargs to be stored. Got: {full_model.task_kwargs}."
-    )
+    assert full_model.task_kwargs == {
+        "subtyping": {"unknown_class_index": 0}
+    }, f"Expected task_kwargs to be stored. Got: {full_model.task_kwargs}."
 
     # CLAM clustering settings are parsed into flat attributes.
     assert full_model.inst_weight == 0.5
@@ -637,13 +641,13 @@ def _test_from_config() -> None:
     assert full_model.k_sample == 2
 
     # Optimizer and scheduler plumbing.
-    assert full_model.optimizer_factory is torch.optim.AdamW, (
-        f"Expected AdamW optimizer factory. Got: {full_model.optimizer_factory}."
-    )
+    assert (
+        full_model.optimizer_factory is torch.optim.AdamW
+    ), f"Expected AdamW optimizer factory. Got: {full_model.optimizer_factory}."
     assert full_model.optimizer_kwargs == {"lr": 5e-4, "weight_decay": 0.01}
-    assert full_model.lr_scheduler_factory is torch.optim.lr_scheduler.StepLR, (
-        f"Expected StepLR scheduler factory. Got: {full_model.lr_scheduler_factory}."
-    )
+    assert (
+        full_model.lr_scheduler_factory is torch.optim.lr_scheduler.StepLR
+    ), f"Expected StepLR scheduler factory. Got: {full_model.lr_scheduler_factory}."
     assert full_model.lr_scheduler_kwargs == {"step_size": 3, "gamma": 0.5}
     assert full_model.lr_scheduler_config == {"interval": "epoch", "frequency": 1}
 
