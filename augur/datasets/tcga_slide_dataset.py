@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 import os
 import random
+import time
+import traceback
 from collections import OrderedDict
 from typing import Any, Callable, Sequence
 
@@ -250,6 +252,8 @@ class _SlideDataset(Dataset[dict[str, Any]]):
     ``sample[pretext_task]["target"]`` (a float vector of mutation exposures).
     """
 
+    _GETITEM_MAX_RETRIES = 3
+
     def __init__(
         self: _SlideDataset,
         *,
@@ -328,7 +332,70 @@ class _SlideDataset(Dataset[dict[str, Any]]):
         return random.sample(list(centers), sample_size)
 
     def __getitem__(self: _SlideDataset, index: int) -> dict[str, Any]:
-        slide_record = self.slide_records[index]
+        worker_pid = os.getpid()
+        current_index = index
+        for attempt in range(self._GETITEM_MAX_RETRIES + 1):
+            slide_record = self.slide_records[current_index]
+            # Heartbeat BEFORE any I/O. If libopenslide segfaults or an NFS
+            # call hangs the worker, this log line is the breadcrumb that
+            # names the offending slide.
+            self.logger.info(
+                "[pid=%d] __getitem__ start: index=%d attempt=%d slide_id=%s submitter=%s path=%s",
+                worker_pid,
+                current_index,
+                attempt,
+                slide_record.slide_id,
+                slide_record.submitter_id,
+                slide_record.slide_path,
+            )
+            start_time = time.monotonic()
+            try:
+                sample = self._load_sample(slide_record)
+            except Exception as exc:  # pylint: disable=broad-except
+                elapsed = time.monotonic() - start_time
+                self.logger.error(
+                    "[pid=%d] __getitem__ FAILED: index=%d attempt=%d "
+                    "slide_id=%s submitter=%s elapsed=%.2fs error=%s\n%s",
+                    worker_pid,
+                    current_index,
+                    attempt,
+                    slide_record.slide_id,
+                    slide_record.submitter_id,
+                    elapsed,
+                    exc,
+                    traceback.format_exc(),
+                )
+                # Drop the bad slide's handle so the cache doesn't keep retrying it.
+                self._slides.pop(slide_record.slide_path, None)
+                if attempt >= self._GETITEM_MAX_RETRIES:
+                    raise RuntimeError(
+                        f"_SlideDataset.__getitem__ failed after "
+                        f"{self._GETITEM_MAX_RETRIES + 1} attempts starting at "
+                        f"index {index}; last failure on slide "
+                        f"{slide_record.slide_id} at {slide_record.slide_path}."
+                    ) from exc
+                # Resample a different slide so we don't hang on a poisoned record.
+                current_index = random.randrange(len(self.slide_records))
+                continue
+
+            elapsed = time.monotonic() - start_time
+            self.logger.info(
+                "[pid=%d] __getitem__ done: index=%d slide_id=%s K=%d elapsed=%.2fs",
+                worker_pid,
+                current_index,
+                slide_record.slide_id,
+                int(sample["image"].shape[0]),
+                elapsed,
+            )
+            return sample
+
+        # Unreachable: the loop either returns a sample or raises above.
+        raise RuntimeError("unreachable in _SlideDataset.__getitem__")
+
+    def _load_sample(
+        self: _SlideDataset, slide_record: SlideRecord
+    ) -> dict[str, Any]:
+        """Read one slide's tile bag and assemble its sample dict."""
         centers = self.centers_by_slide_id[slide_record.slide_id]
         slide = self._get_slide(slide_record.slide_path)
 
