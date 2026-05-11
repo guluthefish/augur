@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=jigmag
+#SBATCH --job-name=decoder
 #SBATCH --partition=general
 #SBATCH --qos=short
 #SBATCH --time=04:00:00
@@ -13,10 +13,10 @@ set -eu
 REPO="/tudelft.net/staff-umbrella/IMGEN"
 IMG="$REPO/containers/augur.sif"
 OUTDIR="$REPO/slurm/output"
-MODEL_NAME="resnet50-jigmag"
+MODEL_NAME="resnet50-none"
 MODEL_CONFIG="$REPO/configs/model-${MODEL_NAME}.yaml"
-EMBEDDING_SOURCE="pre-logits"
-DATA_CONFIG="$REPO/configs/tile_dataset-TCGA-BRCA-jigmag.yaml"
+EMBEDDING_SOURCE="decoder"
+DATA_CONFIG="$REPO/configs/tile_dataset-TCGA-BRCA-none.yaml"
 TOP_CLASSES=5
 LABEL_SOURCE="model-prediction"
 
