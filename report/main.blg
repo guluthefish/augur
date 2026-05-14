@@ -14,44 +14,44 @@ Database file #1: references.bib
 Reallocated str_pool (elt_size=1) to 130000 items from 65000.
 
 Done.
-You've used 63 entries,
+You've used 65 entries,
             4087 wiz_defined-function locations,
-            1246 strings with 57913 characters,
-and the built_in function-call counts, 109707 in all, are:
-= -- 6409
-> -- 7655
-< -- 570
-+ -- 3894
-- -- 1799
-* -- 5969
-:= -- 12951
-add.period$ -- 126
-call.type$ -- 63
-change.case$ -- 63
-chr.to.int$ -- 1188
-cite$ -- 63
-duplicate$ -- 7163
-empty$ -- 7088
-format.name$ -- 1862
-if$ -- 25724
+            1257 strings with 58969 characters,
+and the built_in function-call counts, 112430 in all, are:
+= -- 6589
+> -- 7815
+< -- 586
++ -- 3976
+- -- 1836
+* -- 6115
+:= -- 13296
+add.period$ -- 130
+call.type$ -- 65
+change.case$ -- 65
+chr.to.int$ -- 1218
+cite$ -- 65
+duplicate$ -- 7349
+empty$ -- 7267
+format.name$ -- 1901
+if$ -- 26362
 int.to.chr$ -- 0
-int.to.str$ -- 63
-missing$ -- 2231
-newline$ -- 212
-num.names$ -- 63
-pop$ -- 5960
+int.to.str$ -- 65
+missing$ -- 2282
+newline$ -- 218
+num.names$ -- 65
+pop$ -- 6088
 preamble$ -- 1
 purify$ -- 0
 quote$ -- 2
-skip$ -- 7479
+skip$ -- 7672
 stack$ -- 0
-substring$ -- 2947
-swap$ -- 6899
-text.length$ -- 174
+substring$ -- 3025
+swap$ -- 7075
+text.length$ -- 180
 text.prefix$ -- 0
 top$ -- 5
-type$ -- 63
+type$ -- 65
 warning$ -- 0
-while$ -- 260
-width$ -- 65
-write$ -- 696
+while$ -- 267
+width$ -- 67
+write$ -- 718

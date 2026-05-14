@@ -1,13 +1,13 @@
 # Fdb version 4
-["bibtex main"] 1778420249.8182 "main.aux" "main.bbl" "main" 1778426196.62271 0
-  "./references.bib" 1778267802.07817 177128 4ee6f7e623a11ce673064d59456c1b5e ""
+["bibtex main"] 1778771754.07494 "main.aux" "main.bbl" "main" 1778771754.23895 0
+  "./references.bib" 1778771753.79432 184689 a32abb120aa6c0d3d2205b086f5eb217 ""
   "/usr/local/texlive/2025/texmf-dist/bibtex/bst/ieeetran/IEEEtran.bst" 1440712899 57748 7c8250ecf02814ce6ddc0cdbb63df1dd ""
-  "main.aux" 1778426196.39213 14464 8ecc39020bd2d946a2ea7b59335fcaa7 "pdflatex"
+  "main.aux" 1778510943.09966 14724 b17ac69f5541c7dc55b2f227d986f082 "pdflatex"
   (generated)
   "main.bbl"
   "main.blg"
   (rewritten before read)
-["pdflatex"] 1778426193.96506 "/Users/guluthefish/2026/300-research/augur/report/main.tex" "main.pdf" "main" 1778426196.62286 0
+["pdflatex"] 1778510940.92155 "/Users/guluthefish/2026/300-research/augur/report/main.tex" "main.pdf" "main" 1778771754.23904 0
   "/Users/guluthefish/2026/300-research/augur/report/main.tex" 1778178602.07769 2008 012d3f00ece672fd0189f8d15f5a2d1a ""
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/base/8r.enc" 1165713224 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -161,23 +161,24 @@
   "/usr/local/texlive/2025/texmf-var/web2c/pdftex/pdflatex.fmt" 1743583904 3345733 abd5b904eb279df4f10621961f425538 ""
   "/usr/local/texlive/2025/texmf.cnf" 1741450484 577 418a7058ec8e006d8704f60ecd22c938 ""
   "IEEEtran.cls" 1777550000 281978 b1b5ceb92d87ad4a58dc21bae760340b ""
-  "figures/tile-level.tex" 1778420279.52511 3041 f292bc83ba9ea85b4027976035520478 ""
+  "figures/tile-level.tex" 1778508388.24184 3431 06f4950ba9adbc9304e085035b56d621 ""
   "images/resnet50-full_umap_encoder_model-prediction_top-5.png" 1777550000 3047154 8b508dc9080022c293d4f17fdfc3f85a ""
   "images/resnet50-hematoxylin_umap_encoder_model-prediction_top-5.png" 1777550000 2954643 c44a429cd307ecb8aaec0e80fe50716a ""
   "images/resnet50-jigmag_umap_encoder_model-prediction_top-5.png" 1777550000 3099896 d7b9335af147f477696b6ce04e29f3d0 ""
   "images/resnet50-magnification_umap_encoder_model-prediction_top-5.png" 1777550000 2998572 d386bb650b209569b44579c565b7c707 ""
-  "images/train_tile_learning_curves.png" 1777550002 116958 7f0cabaf498fcc24ba037d72f84ad64e ""
-  "images/val_tile_learning_curves.png" 1777550000 136818 a1a5788de31090f1f43d9f23ff3d2980 ""
-  "main.aux" 1778426196.39213 14464 8ecc39020bd2d946a2ea7b59335fcaa7 "pdflatex"
-  "main.bbl" 1778420249.93173 39610 25b1d054bb58ae4b5a7ae52dfae2dcd7 "bibtex main"
-  "main.out" 1778426196.39316 3798 79c3944c54881bdb257756cd7a3721aa "pdflatex"
+  "images/resnet50-none_umap_encoder_model-prediction_top-5.png" 1778507881.05453 3003956 46b7621254ff9071f1469810a15b1f96 ""
+  "images/train_tile_learning_curves.png" 1778508272.58764 130885 0ed66faa9add7e903b261beb1e2243b6 ""
+  "images/val_tile_learning_curves.png" 1778508272.59012 153903 71b315a12a7c8f055f52f92ffe1d277d ""
+  "main.aux" 1778510943.09966 14724 b17ac69f5541c7dc55b2f227d986f082 "pdflatex"
+  "main.bbl" 1778771754.22848 40492 ad5ce475dd24ae03b30edbe424880d1e "bibtex main"
+  "main.out" 1778510943.10078 3798 79c3944c54881bdb257756cd7a3721aa "pdflatex"
   "main.tex" 1778178602.07769 2008 012d3f00ece672fd0189f8d15f5a2d1a ""
-  "sections/conclusion.tex" 1778420292.83281 36 4f2b18ae5a6053ef6453a8525d3dd22d ""
+  "sections/conclusion.tex" 1778508283.07667 36 4f2b18ae5a6053ef6453a8525d3dd22d ""
   "sections/discussion.tex" 1778426193.82541 39 f0d73baff7d5a6b96ca6c6bef34a3d26 ""
   "sections/experiments.tex" 1778426193.7156 2039 ca7c615e2f7cd26b0059d47b487a8a7c ""
   "sections/introduction.tex" 1778169301.57477 8692 1ad827a69065afd858a60399254db4fa ""
   "sections/methodology.tex" 1777550000 702 542eef9009717d250ab25721846b2e0f ""
-  "sections/related-work.tex" 1778267860.40269 21850 721c4ec8ab2d10879d844fa8a226a1b1 ""
+  "sections/related-work.tex" 1778510937.84784 22027 b453dbd7aaa33cfbec0c9e3ad1c3d3c0 ""
   (generated)
   "main.aux"
   "main.log"

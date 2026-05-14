@@ -400,6 +400,11 @@ INPUT ./images/resnet50-magnification_umap_encoder_model-prediction_top-5.png
 INPUT ./images/resnet50-magnification_umap_encoder_model-prediction_top-5.png
 INPUT ./images/resnet50-magnification_umap_encoder_model-prediction_top-5.png
 INPUT ./images/resnet50-magnification_umap_encoder_model-prediction_top-5.png
+INPUT ./images/resnet50-none_umap_encoder_model-prediction_top-5.png
+INPUT ./images/resnet50-none_umap_encoder_model-prediction_top-5.png
+INPUT ./images/resnet50-none_umap_encoder_model-prediction_top-5.png
+INPUT ./images/resnet50-none_umap_encoder_model-prediction_top-5.png
+INPUT ./images/resnet50-none_umap_encoder_model-prediction_top-5.png
 INPUT ./images/train_tile_learning_curves.png
 INPUT ./images/train_tile_learning_curves.png
 INPUT ./images/train_tile_learning_curves.png
