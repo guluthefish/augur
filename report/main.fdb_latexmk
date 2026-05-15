@@ -1,13 +1,13 @@
 # Fdb version 4
-["bibtex main"] 1778771754.07494 "main.aux" "main.bbl" "main" 1778771754.23895 0
-  "./references.bib" 1778771753.79432 184689 a32abb120aa6c0d3d2205b086f5eb217 ""
+["bibtex main"] 1778777317.88765 "main.aux" "main.bbl" "main" 1778777318.00178 0
+  "./references.bib" 1778777317.69552 184986 c6b17c1e981a83c65ce7321f800a4bf6 ""
   "/usr/local/texlive/2025/texmf-dist/bibtex/bst/ieeetran/IEEEtran.bst" 1440712899 57748 7c8250ecf02814ce6ddc0cdbb63df1dd ""
   "main.aux" 1778510943.09966 14724 b17ac69f5541c7dc55b2f227d986f082 "pdflatex"
   (generated)
   "main.bbl"
   "main.blg"
   (rewritten before read)
-["pdflatex"] 1778510940.92155 "/Users/guluthefish/2026/300-research/augur/report/main.tex" "main.pdf" "main" 1778771754.23904 0
+["pdflatex"] 1778510940.92155 "/Users/guluthefish/2026/300-research/augur/report/main.tex" "main.pdf" "main" 1778777318.00182 0
   "/Users/guluthefish/2026/300-research/augur/report/main.tex" 1778178602.07769 2008 012d3f00ece672fd0189f8d15f5a2d1a ""
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/base/8r.enc" 1165713224 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -170,7 +170,7 @@
   "images/train_tile_learning_curves.png" 1778508272.58764 130885 0ed66faa9add7e903b261beb1e2243b6 ""
   "images/val_tile_learning_curves.png" 1778508272.59012 153903 71b315a12a7c8f055f52f92ffe1d277d ""
   "main.aux" 1778510943.09966 14724 b17ac69f5541c7dc55b2f227d986f082 "pdflatex"
-  "main.bbl" 1778771754.22848 40492 ad5ce475dd24ae03b30edbe424880d1e "bibtex main"
+  "main.bbl" 1778777317.99201 40492 ad5ce475dd24ae03b30edbe424880d1e "bibtex main"
   "main.out" 1778510943.10078 3798 79c3944c54881bdb257756cd7a3721aa "pdflatex"
   "main.tex" 1778178602.07769 2008 012d3f00ece672fd0189f8d15f5a2d1a ""
   "sections/conclusion.tex" 1778508283.07667 36 4f2b18ae5a6053ef6453a8525d3dd22d ""

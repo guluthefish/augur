@@ -17,6 +17,4 @@ params:
   test_fraction: 0.15
   random_seed: 42
   batch_size: 2
-  val_batch_size: 1
-  test_batch_size: 1
   num_workers: 2

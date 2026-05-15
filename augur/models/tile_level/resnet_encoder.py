@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from calendar import c
-from typing import Any, Callable, Sequence
+from typing import Any, Callable
 
 from torch import Tensor, nn
 from torch.optim import Optimizer
