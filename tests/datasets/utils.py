@@ -319,7 +319,7 @@ def _test_load_tissue_mask():
     )
 
     center_x, center_y = tile_record_center_l0(slide, tile_record)
-    tile_image = read_tile_at_mpp(
+    tile_image = read_tile_at_mpp(  # pylint: disable=unused-variable
         slide,
         center_x=center_x,
         center_y=center_y,
