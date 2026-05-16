@@ -265,7 +265,7 @@ log_files/
 outputs/*
 !outputs/visualization
 checkpoints/
-# report/*
+report/*
 
 # Archives
 archives/
