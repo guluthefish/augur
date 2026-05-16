@@ -107,9 +107,16 @@ def _load_tile_encoder(
     model_config_path: str,
     *,
     device: torch.device,
+    dtype: torch.dtype,
     logger: logging.Logger,
 ) -> tuple[nn.Module, str, int]:
     """Load the encoder from a tile-model YAML and return ``(encoder, name, D)``.
+
+    The encoder is moved to ``device`` *and* cast to ``dtype``. Casting the
+    weights matters because :func:`_encode_tile_bag` casts each input chunk
+    to ``dtype`` before the forward pass — leaving the weights at fp32 while
+    feeding fp16 input triggers a ``HalfTensor`` vs ``FloatTensor`` mismatch
+    inside the first conv.
 
     The model YAML follows the same shape as the one referenced by aggregator
     configs via ``tile_model_config`` (e.g. ``model-resnet50-full.yaml``):
@@ -162,10 +169,14 @@ def _load_tile_encoder(
     encoder.eval()
     for parameter in encoder.parameters():
         parameter.requires_grad = False
-    encoder.to(device)
+    encoder.to(device=device, dtype=dtype)
 
     logger.info(
-        "Encoder ready: name=%s enc_dim=%d device=%s", encoder_name, enc_dim, device
+        "Encoder ready: name=%s enc_dim=%d device=%s dtype=%s",
+        encoder_name,
+        enc_dim,
+        device,
+        dtype,
     )
     return encoder, encoder_name, enc_dim
 
@@ -622,7 +633,7 @@ def main() -> None:
     )
 
     encoder, encoder_name, enc_dim = _load_tile_encoder(
-        model_config_path, device=device, logger=logger
+        model_config_path, device=device, dtype=dtype, logger=logger
     )
 
     datamodule = _instantiate_datamodule(data_config_path, logger=logger)
