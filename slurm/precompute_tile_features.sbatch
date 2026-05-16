@@ -1,13 +1,13 @@
 #!/bin/sh
-#SBATCH --job-name=precompute-features
+#SBATCH --job-name=pre-jigmag
 #SBATCH --gres=gpu:1
 #SBATCH --partition=general
-#SBATCH --qos=long
-#SBATCH --time=3-00:00:00
+#SBATCH --qos=medium
+#SBATCH --time=1-12:00:00
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
-#SBATCH --output=slurm/output/precompute-features-%j.out
-#SBATCH --error=slurm/output/precompute-features-%j.err
+#SBATCH --mem=64G
+#SBATCH --output=slurm/output/resnet50-jigmag-precompute-features-%j.out
+#SBATCH --error=slurm/output/resnet50-jigmag-precompute-features-%j.err
 
 # One-shot precompute of frozen-encoder tile features for every slide.
 #
@@ -28,14 +28,14 @@ IMG="$REPO/containers/augur.sif"
 OUTDIR="$REPO/slurm/output"
 
 CONFIG_DIR="$REPO/configs"
-MODEL_CFG="model-resnet50-full.yaml"
+MODEL_CFG="model-resnet50-jigmag.yaml"
 DATA_CFG="slide_dataset-TCGA-BRCA.yaml"
 ENCODER_ARCHITECTURE="resnet50"
-TILE_PRETEXT="full"
+TILE_PRETEXT="jigmag"
 
-# Encoding throughput knobs. bf16 halves GPU memory at zero quality cost for a
+# Encoding throughput knobs. float16 halves GPU memory at zero quality cost for a
 # frozen encoder; A40s have 48 GB so CHUNK_SIZE can be generous.
-PRECISION="bf16"
+PRECISION="float16"
 CHUNK_SIZE="128"
 
 # Where the per-slide .pt files land. Lives on the shared FS so the cache
