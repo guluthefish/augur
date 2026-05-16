@@ -1,0 +1,17 @@
+name: TCGAFeatureDataset
+params:
+  root_dir: data/TCGA-BRCA
+  features_dir: data/TCGA-BRCA/features/resnet50-jigmag
+  main_task: subtyping
+  pretext_tasks:
+    - sbs_regression
+  portion_per_sample: 0.25
+  train_fraction: 0.7
+  val_fraction: 0.15
+  test_fraction: 0.15
+  random_seed: 42
+  batch_size: 16
+  val_batch_size: 8
+  test_batch_size: 8
+  num_workers: 4
+  expected_encoder_name: ResNetEncoder

@@ -1,7 +1,6 @@
 extends: common-params.yaml
 name: DualCLAM
 params:
-  tile_model_config: model-resnet50-full.yaml
   enc_dim: 2048
   main_task: subtyping
   pretext_tasks: null

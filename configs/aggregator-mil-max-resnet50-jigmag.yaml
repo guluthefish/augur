@@ -1,7 +1,6 @@
 extends: common-params.yaml
 name: EmbeddingMIL
 params:
-  tile_model_config: model-resnet50-jigmag.yaml
   enc_dim: 2048
   aggregation_method: max
   main_task: subtyping
