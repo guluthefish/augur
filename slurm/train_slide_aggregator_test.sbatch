@@ -1,13 +1,13 @@
 #!/bin/sh
-#SBATCH --job-name=test-mil-mean
+#SBATCH --job-name=agg-test
 #SBATCH --gres=gpu:2
 #SBATCH --partition=general
 #SBATCH --qos=short
 #SBATCH --time=04:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --output=slurm/output/test-mil-mean-resnet50-full-%j.out
-#SBATCH --error=slurm/output/test-mil-mean-resnet50-full-%j.err
+#SBATCH --output=slurm/output/aggregator-test-%j.out
+#SBATCH --error=slurm/output/aggregator-test-%j.err
 
 set -eu
 
@@ -17,62 +17,31 @@ OUTDIR="$REPO/slurm/output"
 
 CONFIG_DIR="$REPO/configs"
 TRAINING_CFG="training-aggregator-test.yaml"
-DATA_CFG="slide_dataset-TCGA-BRCA.yaml"
-AGGREGATOR_NAME="mil-mean"
-ENCODER_ARCHITECTURE="resnet50"
 TILE_PRETEXT="full"
+DATA_CFG="feature_dataset-TCGA-BRCA-$TILE_PRETEXT.yaml"
+AGGREGATOR_NAME="dual-clam-mb-gated"
+ENCODER_ARCHITECTURE="resnet50"
+
 export PYTHONPATH="/work${PYTHONPATH:+:$PYTHONPATH}"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
-# DAIC: use node-local /tmp for temporary data and clean it up
+# DAIC: use node-local /tmp for temporary data and clean it up.
 tmpdir="/tmp/${USER}/${SLURM_JOBID}"
 mkdir -p "$tmpdir"
 clean_up() { rm -rf "$tmpdir"; }
 trap clean_up EXIT
 
-# Stage the HF Hub cache to node-local storage.
-hf_cache_local="$tmpdir/huggingface"
-if [ -d "$HOME/.cache/huggingface" ]; then
-    echo "Staging HF Hub cache to $hf_cache_local ..."
-    cp -r "$HOME/.cache/huggingface" "$hf_cache_local"
-else
-    mkdir -p "$hf_cache_local"
-fi
+echo "training_config: $TRAINING_CFG"
+echo "data_config:     $DATA_CFG"
+echo "aggregator:      $AGGREGATOR_NAME / $ENCODER_ARCHITECTURE / $TILE_PRETEXT"
 
-# Pre-cache any HF Hub-backed encoder weights in a single process before srun
-# so both ranks see a fully populated cache and do not race on timm/HF filelocks.
-case "$ENCODER_ARCHITECTURE" in
-  *gigapath*)
-    echo "Pre-caching $ENCODER_ARCHITECTURE weights into the node-local HF cache ..."
-    apptainer exec \
-        -B "$REPO:/work" \
-        -B "$tmpdir:/tmp" \
-        --env HF_HOME=/tmp/huggingface \
-        --pwd /work \
-        "$IMG" \
-        /opt/conda/envs/augur/bin/python -c "
-from dotenv import load_dotenv
-load_dotenv()
-import timm
-timm.create_model(
-    'hf_hub:prov-gigapath/prov-gigapath',
-    pretrained=True,
-    num_classes=0,
-    global_pool='',
-)
-print('Pre-cached prov-gigapath.')
-"
-    ;;
-esac
-
-# Run on compute node via srun; execute inside container
+# Run on compute node via srun; execute inside container.
 srun apptainer exec \
     --nv \
     -B "$REPO:/work" \
     -B "$OUTDIR:/out" \
     -B "$tmpdir:/tmp" \
     -B "$tmpdir:/dev/shm" \
-    --env HF_HOME=/tmp/huggingface \
     --env TORCH_NCCL_BLOCKING_WAIT=1 \
     --env TORCH_NCCL_ASYNC_ERROR_HANDLING=1 \
     --pwd /work \

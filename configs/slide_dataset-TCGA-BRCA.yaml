@@ -11,7 +11,7 @@ params:
   base_mpp: 0.25
   min_tissue_fraction: 0.5
   thumbnail_max_size: 1024
-  white_threshold: 0.8
+  white_threshold: 0.85
   train_fraction: 0.7
   val_fraction: 0.15
   test_fraction: 0.15

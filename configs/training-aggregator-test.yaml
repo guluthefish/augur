@@ -2,9 +2,9 @@ seed: 42
 test_after_fit: true
 enable_lr_monitor: true
 trainer:
-  accelerator: cpu
-  devices: 1
-  # strategy: ddp
+  accelerator: gpu
+  devices: 2
+  strategy: ddp
   num_nodes: 1
   sync_batchnorm: true
   max_epochs: 200
