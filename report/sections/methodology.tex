@@ -1,36 +1,45 @@
-\section{Methodology}
-\label{sec:method}
+\section{Methodology}\label{sec:method}
+% TODO: Brief overview paragraph + system figure.
+Augur classifies molecular subtypes of breast tumours from H\&E whole-slide images (WSIs) of the TCGA-BRCA cohort. Because WSIs reach gigapixel resolution and only carry a single slide-level label, we decompose the task into a tile encoder and a multiple-instance-learning aggregator. The pipeline (\autoref{fig:method-overview}) proceeds in three stages: WSI preprocessing into tissue tiles (\autoref{sec:method/wsi}); a shared tile encoder trained with auxiliary supervised and self-supervised pretext tasks that shape its representations around interpretable histological concepts (\autoref{sec:method/tile}); and an attention-based slide-level aggregator that produces both the subtype prediction and a spatial attention map identifying the tiles driving each class decision (\autoref{sec:method/slide}). The auxiliary tasks at the tile stage and the per-class attention branches at the slide stage are the two mechanisms through which the model becomes visually explainable.
 
-\subsection{VexDR}
-\label{sec:method/vexdr}
+    \subsection{WSI Preprocessing}\label{sec:method/wsi}
 
-The pipeline includes 3 stages:
+        \subsubsection{Tissue detection and tile sampling} 
 
-\begin{enumerate}
-    \item WSI pre-processing.
-    \item Tile-level feature extraction
-    \item Slide-level aggregation
-\end{enumerate}
+        \subsubsection{Tile normalization}
 
-\subsection{WSI pre-processing}
-\label{sec:method/wsi}
+    \subsection{Tile-level Feature Extraction}\label{sec:method/tile}
 
-\subsubsection{Segmentation}
+        \subsubsection{Architecture}
+        % TODO: encoders and decoders
+    
+        \subsubsection{Multi-task pretext learning}
+            % TODO: the framework
+            \paragraph{Tissue typing (supervised, BCSS)}
+            \paragraph{Magnification prediction (self-supervised)}
+            \paragraph{Magnification jigsaw (self-supervised)}
+            \paragraph{Hematoxylin channel prediction (self-supervised)}
+        
+            \subsubsection{Loss aggregation}
+            % TODO: weights, normalization
 
-\subsubsection{Tiling}
+    \subsection{Slide-level Aggregation}\label{sec:method/slide}
+        \subsubsection{Feature pre-computation}
+        % TODO: the cached-features steap
+        
+        \subsubsection{Aggregator architectures}
+        % TODO: MIL variants
+        % TODO: CLAM
+        % TODO: Novelty - DualCLAM
+        
+        \subsubsection{SBS contribution regression pretext}
+        % TODO:
+        
+        \subsubsection{Instance clustering loss}
+        % TODO: CLAM's auxiliary
+        
+        \subsubsection{Visual explainability via attention} 
+        % per-class branches
 
-\subsection{Tile-level feature extraction}
-\label{sec:method/tile}
-
-\subsubsection{Multi-task learning}
-
-\subsubsection{Self-supervision}
-
-\paragraph{Magnification prediction}
-
-\paragraph{Solving magnification puzzle (jigmag)}
-
-\paragraph{Hematoxylin channel prediction}
-
-\subsection{Slide-level aggregation}
-\label{sec:method/slide}
+    \subsection{Training Details}
+    % Optimizer, schedule, precision, DDP, freeze-encoder convention.

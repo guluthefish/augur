@@ -31,14 +31,21 @@
 \usepackage{multirow}
 
 \usepackage{rotating}
+
+\usepackage[most]{tcolorbox}
+
 \bibliographystyle{IEEEtran}
 
 
 \renewcommand\thesubfigure{\alph{subfigure}}
 
+\renewcommand{\sectionautorefname}{Section}
+\renewcommand{\subsectionautorefname}{Section}
+\renewcommand{\subsubsectionautorefname}{Section}
+
 \begin{document}
 
-\title{VexDR: $\mathbb V$isually $\mathbb{EX}$plainable $\mathbb D$river Mutation $\mathbb R$ecognition using Whole Slide Images
+\title{Augur: Visually Explainable Subtype Classification from Whole Slide Images
 % \thanks{Identify applicable funding agency here. If none, delete this.}
 }
 
@@ -69,9 +76,10 @@ email address or ORCID}
 
 
 \input{sections/methodology}
+\input{figures/method}
 
 \input{sections/experiments}
-\input{figures/tile-level}
+\input{figures/exp-tile-level}
 
 \input{sections/discussion}
 \input{sections/conclusion}
