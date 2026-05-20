@@ -284,6 +284,137 @@ def load_slide_records(
     return records
 
 
+def _three_way_submitter_counts(
+    n: int,
+    train_fraction: float,
+    val_fraction: float,
+    test_fraction: float,
+) -> tuple[int, int, int]:
+    """Split ``n`` submitters into 3 nonneg ints approximating the given fractions."""
+    if n <= 0:
+        return 0, 0, 0
+    if n == 1:
+        return 1, 0, 0
+    if n == 2:
+        if val_fraction >= test_fraction:
+            return 1, 1, 0
+        return 1, 0, 1
+
+    n_train = int(round(n * train_fraction))
+    n_val = int(round(n * val_fraction))
+
+    n_train = min(max(n_train, 1), n - 2)
+    n_val_min = 1 if val_fraction > 0 else 0
+    n_val = min(max(n_val, n_val_min), n - n_train - 1)
+    n_test = max(n - n_train - n_val, 1)
+    return n_train, n_val, n_test
+
+
+def split_slide_records_with_budget(
+    slides: Sequence[SlideRecord],
+    *,
+    labeled_submitter_ids: set[str],
+    train_fraction: float,
+    val_fraction: float,
+    test_fraction: float,
+    train_budget: float,
+    val_budget: float,
+    test_budget: float,
+    seed: int,
+    logger: logging.Logger | None = None,
+) -> dict[str, list[SlideRecord]]:
+    """
+    Patient-level split that places labeled submitters by budget and fills
+    each split with unlabeled submitters up to the fraction-derived total.
+
+    Labeled submitters are distributed among train/val/test by
+    ``train_budget``/``val_budget``/``test_budget``. Unlabeled submitters then
+    fill each split so the combined submitter count approximates
+    ``train_fraction``/``val_fraction``/``test_fraction`` of the total submitter
+    count. If a split's labeled budget already exceeds its fraction-derived
+    target, the unlabeled count for that split is clamped to 0 and a warning is
+    logged.
+    """
+    submitters_to_slides: dict[str, list[SlideRecord]] = {}
+    for slide in slides:
+        submitters_to_slides.setdefault(slide.submitter_id, []).append(slide)
+
+    submitter_ids = list(submitters_to_slides)
+    labeled_ids = [sid for sid in submitter_ids if sid in labeled_submitter_ids]
+    unlabeled_ids = [sid for sid in submitter_ids if sid not in labeled_submitter_ids]
+
+    rng = random.Random(seed)
+    rng.shuffle(labeled_ids)
+    rng_u = random.Random(seed + 1)
+    rng_u.shuffle(unlabeled_ids)
+
+    n_labeled = len(labeled_ids)
+    n_unlabeled = len(unlabeled_ids)
+    n_total = n_labeled + n_unlabeled
+
+    labeled_train_n, labeled_val_n, labeled_test_n = _three_way_submitter_counts(
+        n_labeled, train_budget, val_budget, test_budget
+    )
+
+    target_train = int(round(n_total * train_fraction))
+    target_val = int(round(n_total * val_fraction))
+    target_test = n_total - target_train - target_val
+
+    unlabeled_targets: list[int] = []
+    for split_name, target, labeled_n in (
+        ("train", target_train, labeled_train_n),
+        ("val", target_val, labeled_val_n),
+        ("test", target_test, labeled_test_n),
+    ):
+        u = target - labeled_n
+        if u < 0:
+            if logger is not None:
+                logger.warning(
+                    "%s labeled budget allocates %d submitter(s) but fraction "
+                    "target is only %d. Clamping unlabeled count to 0.",
+                    split_name,
+                    labeled_n,
+                    target,
+                )
+            u = 0
+        unlabeled_targets.append(u)
+
+    total_unlabeled_target = sum(unlabeled_targets)
+    if total_unlabeled_target > n_unlabeled and total_unlabeled_target > 0:
+        scale = n_unlabeled / total_unlabeled_target
+        scaled = [int(math.floor(u * scale)) for u in unlabeled_targets]
+        remainder = n_unlabeled - sum(scaled)
+        fractional = [
+            (unlabeled_targets[i] * scale) - scaled[i] for i in range(3)
+        ]
+        order = sorted(range(3), key=lambda i: -fractional[i])
+        for i in order[:remainder]:
+            scaled[i] += 1
+        unlabeled_targets = scaled
+
+    u_train, u_val, u_test = unlabeled_targets
+
+    train_labeled = labeled_ids[:labeled_train_n]
+    val_labeled = labeled_ids[labeled_train_n : labeled_train_n + labeled_val_n]
+    test_labeled = labeled_ids[
+        labeled_train_n + labeled_val_n : labeled_train_n + labeled_val_n + labeled_test_n
+    ]
+
+    train_unlabeled = unlabeled_ids[:u_train]
+    val_unlabeled = unlabeled_ids[u_train : u_train + u_val]
+    test_unlabeled = unlabeled_ids[u_train + u_val : u_train + u_val + u_test]
+
+    train_ids = set(train_labeled) | set(train_unlabeled)
+    val_ids = set(val_labeled) | set(val_unlabeled)
+    test_ids = set(test_labeled) | set(test_unlabeled)
+
+    return {
+        "train": [slide for slide in slides if slide.submitter_id in train_ids],
+        "val": [slide for slide in slides if slide.submitter_id in val_ids],
+        "test": [slide for slide in slides if slide.submitter_id in test_ids],
+    }
+
+
 def split_slide_records(
     slides: Sequence[SlideRecord],
     *,
@@ -645,6 +776,119 @@ def load_tissue_mask_label(
     )
 
     return np.asarray(padded_crop, dtype=np.uint8)
+
+
+def load_tissue_mask_label_for_free_tile(
+    *,
+    root_dir: str,
+    tile_record: TileRecord,
+    slide: OpenSlide,
+    base_mpp: float,
+    output_size: int,
+    slide_name: str,
+    slide_rois: "pd.DataFrame | None",
+    logger: logging.Logger | None = None,
+) -> np.ndarray:
+    """
+    Build a BCSS tissue mask aligned to a free-sampled tile by compositing every
+    ROI that overlaps the tile. Pixels outside any ROI stay at class ``0``
+    (``outside_roi``).
+
+    Parameters
+    ----------
+    slide_name:
+        BCSS slide name (as produced by :func:`derive_bcss_slide_name`) used to
+        look up per-ROI mask files.
+    slide_rois:
+        DataFrame of ROI rows for this slide (columns ``xmin``, ``ymin``,
+        ``xmax``, ``ymax``). When ``None`` or empty, an all-zero mask is
+        returned.
+    """
+    out_mask = np.zeros((output_size, output_size), dtype=np.uint8)
+    if slide_rois is None or slide_rois.empty:
+        return out_mask
+    if base_mpp <= 0:
+        raise ValueError("base_mpp must be positive.")
+
+    downsample = float(slide.level_downsamples[tile_record.level])
+    tile_extent_l0 = tile_record.size * downsample
+    if tile_extent_l0 <= 0:
+        return out_mask
+    tile_x_l0 = float(tile_record.x)
+    tile_y_l0 = float(tile_record.y)
+    tile_right_l0 = tile_x_l0 + tile_extent_l0
+    tile_bottom_l0 = tile_y_l0 + tile_extent_l0
+    output_per_l0 = output_size / tile_extent_l0
+
+    for roi_row in slide_rois.itertuples(index=False):
+        roi_xmin = int(roi_row.xmin)
+        roi_ymin = int(roi_row.ymin)
+        roi_xmax = int(roi_row.xmax)
+        roi_ymax = int(roi_row.ymax)
+
+        ix_lo = max(tile_x_l0, float(roi_xmin))
+        iy_lo = max(tile_y_l0, float(roi_ymin))
+        ix_hi = min(tile_right_l0, float(roi_xmax))
+        iy_hi = min(tile_bottom_l0, float(roi_ymax))
+        if ix_hi <= ix_lo or iy_hi <= iy_lo:
+            continue
+
+        mask_filename = (
+            f"{slide_name}_xmin{roi_xmin}_ymin{roi_ymin}"
+            f"_MPP-{float(base_mpp):.4f}.png"
+        )
+        mask_path = os.path.join(root_dir, "labels", "tissues", "masks", mask_filename)
+        if not os.path.exists(mask_path):
+            if logger is not None:
+                logger.warning(
+                    "BCSS tissue mask missing for free-sampled tile composite: %s",
+                    mask_path,
+                )
+            continue
+        mask_np = cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)  # pylint: disable=no-member
+        if mask_np is None:
+            if logger is not None:
+                logger.warning("Failed to read BCSS tissue mask: %s", mask_path)
+            continue
+        if mask_np.ndim == 3:
+            mask_np = mask_np[..., 0]
+
+        roi_width_l0 = max(roi_xmax - roi_xmin, 1)
+        roi_height_l0 = max(roi_ymax - roi_ymin, 1)
+        scale_x = mask_np.shape[1] / roi_width_l0
+        scale_y = mask_np.shape[0] / roi_height_l0
+
+        src_left = int(round((ix_lo - roi_xmin) * scale_x))
+        src_top = int(round((iy_lo - roi_ymin) * scale_y))
+        src_right = int(round((ix_hi - roi_xmin) * scale_x))
+        src_bottom = int(round((iy_hi - roi_ymin) * scale_y))
+        src_left = max(0, min(src_left, mask_np.shape[1]))
+        src_right = max(src_left, min(src_right, mask_np.shape[1]))
+        src_top = max(0, min(src_top, mask_np.shape[0]))
+        src_bottom = max(src_top, min(src_bottom, mask_np.shape[0]))
+        if src_right <= src_left or src_bottom <= src_top:
+            continue
+
+        dst_left = int(round((ix_lo - tile_x_l0) * output_per_l0))
+        dst_top = int(round((iy_lo - tile_y_l0) * output_per_l0))
+        dst_right = int(round((ix_hi - tile_x_l0) * output_per_l0))
+        dst_bottom = int(round((iy_hi - tile_y_l0) * output_per_l0))
+        dst_left = max(0, min(dst_left, output_size))
+        dst_right = max(dst_left, min(dst_right, output_size))
+        dst_top = max(0, min(dst_top, output_size))
+        dst_bottom = max(dst_top, min(dst_bottom, output_size))
+        if dst_right <= dst_left or dst_bottom <= dst_top:
+            continue
+
+        crop = mask_np[src_top:src_bottom, src_left:src_right]
+        resized = cv2.resize(  # pylint: disable=no-member
+            crop,
+            (dst_right - dst_left, dst_bottom - dst_top),
+            interpolation=cv2.INTER_NEAREST,  # pylint: disable=no-member
+        )
+        out_mask[dst_top:dst_bottom, dst_left:dst_right] = resized
+
+    return out_mask
 
 
 def get_slide_mpp(slide: OpenSlide, logger: logging.Logger | None = None) -> float:

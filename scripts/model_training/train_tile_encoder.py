@@ -611,7 +611,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train a tile-level model.")
     parser.add_argument(
         "--model-config",
-        default="configs/model-resnet50-hematoxylin.yaml",
+        default="configs/model-resnet50-full.yaml",
         help="Path to the model YAML config.",
     )
     parser.add_argument(
@@ -621,7 +621,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--training-config",
-        default="configs/training-config.yaml",
+        default="configs/training-resnet50-test.yaml",
         help="Path to the training YAML config.",
     )
     return parser

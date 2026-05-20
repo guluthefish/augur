@@ -2,6 +2,7 @@
 
 import os
 
+import pandas as pd
 import torch
 
 from augur.datasets.tcga_tile_dataset import TCGATileDataset, _TileDataset
@@ -68,6 +69,20 @@ def _test_TileDataset():
         )
     )
 
+    bcss_roi_groups = {
+        test_slide_name: pd.DataFrame(
+            [
+                {
+                    "slide_name": test_slide_name,
+                    "xmin": xmin,
+                    "ymin": ymin,
+                    "xmax": xmax,
+                    "ymax": ymax,
+                }
+            ]
+        )
+    }
+
     tile_dataset = _TileDataset(
         root_dir=root_dir,
         records=tile_records,
@@ -79,6 +94,7 @@ def _test_TileDataset():
         jigmag_mpps=[0.25, 0.5, 1.0, 2.0],
         random_seed=42,
         tissue_segmentation_n_classes=22,
+        bcss_roi_groups=bcss_roi_groups,
     )
 
     assert len(tile_dataset) == len(tile_records), (
