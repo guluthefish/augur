@@ -14,4 +14,5 @@ params:
   val_batch_size: 8
   test_batch_size: 8
   num_workers: 4
+  prefetch_factor: 2
   expected_encoder_name: ResNetEncoder

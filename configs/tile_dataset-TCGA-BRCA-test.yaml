@@ -26,3 +26,4 @@ params:
   random_seed: 42
   batch_size: 8
   num_workers: 2
+  prefetch_factor: 2

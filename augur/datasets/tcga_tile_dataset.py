@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import random
+from collections import OrderedDict
 from typing import Any, Callable, Sequence
 
 
@@ -117,6 +118,7 @@ class _TileDataset(Dataset[dict[str, Any]]):
         jigmag_mpps: Sequence[float] | None = None,
         tissue_segmentation_n_classes: int | None = None,
         bcss_roi_groups: dict[str, pd.DataFrame] | None = None,
+        slide_cache_size: int = 16,
         random_seed: int = 42,
         root_dir: str | None = None,
         task_transforms: (
@@ -125,6 +127,8 @@ class _TileDataset(Dataset[dict[str, Any]]):
         sample_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
+        if slide_cache_size <= 0:
+            raise ValueError("slide_cache_size must be a positive integer.")
         self.records = list(records)
         self.tasks = list(tasks)
         self.tile_size = tile_size
@@ -143,11 +147,12 @@ class _TileDataset(Dataset[dict[str, Any]]):
         )
         self.tissue_segmentation_n_classes = tissue_segmentation_n_classes
         self.bcss_roi_groups = bcss_roi_groups
+        self.slide_cache_size = slide_cache_size
         self.random_seed = random_seed
         self.task_transforms = task_transforms or {}
         self.sample_transform = sample_transform
         self.logger = logger or _setup_logger_for_module()
-        self._slides: dict[str, OpenSlide] = {}
+        self._slides: OrderedDict[str, OpenSlide] = OrderedDict()
 
         # Check task validity at the dataset level since tasks are shared across all samples.
         unknown_tasks = set(self.tasks).difference(SUPPORTED_TASKS)
@@ -162,21 +167,26 @@ class _TileDataset(Dataset[dict[str, Any]]):
     def __getstate__(self: _TileDataset) -> dict[str, Any]:
         """Drop open slide handles when dataloader workers are forked/pickled."""
         state = self.__dict__.copy()
-        state["_slides"] = {}
+        state["_slides"] = OrderedDict()
         return state
 
     def close(self: _TileDataset) -> None:
         """Close any cached slide handles held by the current worker."""
         for slide in self._slides.values():
             slide.close()
-        self._slides = {}
+        self._slides = OrderedDict()
 
     def _get_slide(self: _TileDataset, slide_path: str) -> OpenSlide:
-        """Reuse one slide handle per worker process."""
+        """Return a cached slide handle, opening and LRU-evicting as needed."""
         slide = self._slides.get(slide_path)
-        if slide is None:
-            slide = OpenSlide(slide_path)
-            self._slides[slide_path] = slide
+        if slide is not None:
+            self._slides.move_to_end(slide_path)
+            return slide
+        slide = OpenSlide(slide_path)
+        self._slides[slide_path] = slide
+        while len(self._slides) > self.slide_cache_size:
+            _, evicted = self._slides.popitem(last=False)
+            evicted.close()
         return slide
 
     def __getitem__(self: _TileDataset, index: int) -> dict[str, Any]:
@@ -489,6 +499,7 @@ class TCGATileDataset(DatasetABC):
         test_budget: float = 0.4,
         random_seed: int = 42,
         max_slides: int | None = None,
+        slide_cache_size: int | None = None,
         task_transforms: (
             dict[str, Callable[[dict[str, Any]], dict[str, Any]]] | None
         ) = None,
@@ -568,6 +579,9 @@ class TCGATileDataset(DatasetABC):
         if max_slides is not None and max_slides <= 0:
             self.logger.error("max_slides must be a positive integer or None.")
             raise ValueError("max_slides must be a positive integer or None.")
+        if slide_cache_size is not None and slide_cache_size <= 0:
+            self.logger.error("slide_cache_size must be a positive integer or None.")
+            raise ValueError("slide_cache_size must be a positive integer or None.")
         split_sum = train_fraction + val_fraction + test_fraction
         if not np.isclose(split_sum, 1.0):
             self.logger.error(
@@ -612,6 +626,11 @@ class TCGATileDataset(DatasetABC):
         self.test_budget = test_budget
         self.random_seed = random_seed
         self.max_slides = max_slides
+        if slide_cache_size is None:
+            effective_workers = max(num_workers, 1)
+            effective_prefetch = prefetch_factor if prefetch_factor is not None else 2
+            slide_cache_size = effective_workers * effective_prefetch * batch_size
+        self.slide_cache_size = slide_cache_size
         self.task_transforms = dict(task_transforms or {})
         self.sample_transform = sample_transform
         self._resolved_manifest_path: str | None = None
@@ -744,6 +763,14 @@ class TCGATileDataset(DatasetABC):
         ):
             raise ValueError("max_slides must be a positive integer or None in config.")
 
+        slide_cache_size = config.get("slide_cache_size", None)
+        if slide_cache_size is not None and (
+            not isinstance(slide_cache_size, int) or slide_cache_size <= 0
+        ):
+            raise ValueError(
+                "slide_cache_size must be a positive integer or None in config."
+            )
+
         # task_transforms: (
         #     dict[str, Callable[[dict[str, Any]], dict[str, Any]]] | None
         # ) = None,
@@ -822,6 +849,7 @@ class TCGATileDataset(DatasetABC):
             test_budget=test_budget,
             random_seed=random_seed,
             max_slides=max_slides,
+            slide_cache_size=slide_cache_size,
             batch_size=batch_size,
             val_batch_size=val_batch_size,
             test_batch_size=test_batch_size,
@@ -991,6 +1019,7 @@ class TCGATileDataset(DatasetABC):
             logger=self.logger,
             tissue_segmentation_n_classes=tissue_segmentation_n_classes,
             bcss_roi_groups=bcss_roi_groups,
+            slide_cache_size=self.slide_cache_size,
         )
 
     def _get_bcss_roi_groups(self) -> dict[str, pd.DataFrame]:
