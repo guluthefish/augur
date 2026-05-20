@@ -55,6 +55,11 @@ def compute_semantic_segmentation_loss(
     class_target = _as_class_indices(target, class_dim=1)
     if unknown_class_index is None:
         return F.cross_entropy(prediction.float(), class_target)
+    if not (class_target != unknown_class_index).any():
+        # Every pixel is the ignore class — cross_entropy would divide by 0
+        # and return NaN. Contribute 0 to the total loss while keeping the
+        # tensor attached to the computation graph.
+        return prediction.float().sum() * 0.0
     return F.cross_entropy(
         prediction.float(),
         class_target,

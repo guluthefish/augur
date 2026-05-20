@@ -7,7 +7,7 @@ trainer:
   # strategy: ddp
   num_nodes: 1
   sync_batchnorm: false
-  max_epochs: 100
+  max_epochs: 1
   precision: 16-mixed
   default_root_dir: outputs/model_training
   run_name: resnet50-full
