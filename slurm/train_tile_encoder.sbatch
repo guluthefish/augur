@@ -1,14 +1,14 @@
 #!/bin/sh
-#SBATCH --job-name=none
+#SBATCH --job-name=magnification
 #SBATCH --gres=gpu:2
 #SBATCH --partition=general
-#SBATCH --qos=medium
-#SBATCH --time=1-12:00:00
+#SBATCH --qos=long
+#SBATCH --time=7-00:00:00
 #SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH --output=slurm/output/resnet50-none-%j.out
-#SBATCH --error=slurm/output/resnet50-none-%j.err
+#SBATCH --output=slurm/output/resnet50-magnification-%j.out
+#SBATCH --error=slurm/output/resnet50-magnification-%j.err
 
 set -eu
 
@@ -17,7 +17,7 @@ IMG="$REPO/containers/augur.sif"
 OUTDIR="$REPO/slurm/output"
 
 MODEL_NAME="resnet50"
-TASK_NAME="none"
+TASK_NAME="magnification"
 
 MODEL_CFG="$REPO/configs/model-$MODEL_NAME-$TASK_NAME.yaml"
 DATA_CFG="$REPO/configs/tile_dataset-TCGA-BRCA-$TASK_NAME.yaml"
