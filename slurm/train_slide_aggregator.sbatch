@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=full
+#SBATCH --job-name=attn-full
 #SBATCH --gres=gpu:2
 #SBATCH --ntasks=1
 #SBATCH --partition=general
@@ -7,8 +7,8 @@
 #SBATCH --time=1-12:00:00
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
-#SBATCH --output=slurm/output/dual-clam-mb-gated-resnet50-full-%j.out
-#SBATCH --error=slurm/output/dual-clam-mb-gated-resnet50-full-%j.err
+#SBATCH --output=slurm/output/mil-attention-full-%j.out
+#SBATCH --error=slurm/output/mil-attention-full-%j.err
 
 set -eu
 
@@ -20,7 +20,7 @@ CONFIG_DIR="$REPO/configs"
 TRAINING_CFG="training-aggregator.yaml"
 TILE_PRETEXT="full"
 DATA_CFG="feature_dataset-TCGA-BRCA-archive-$TILE_PRETEXT.yaml"
-AGGREGATOR_NAME="dual-clam-mb-gated"
+AGGREGATOR_NAME="mil-attention"
 ENCODER_ARCHITECTURE="resnet50"
 
 export PYTHONPATH="/work${PYTHONPATH:+:$PYTHONPATH}"
