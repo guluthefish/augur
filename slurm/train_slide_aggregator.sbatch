@@ -19,7 +19,7 @@ OUTDIR="$REPO/slurm/output"
 CONFIG_DIR="$REPO/configs"
 TRAINING_CFG="training-aggregator.yaml"
 TILE_PRETEXT="full"
-DATA_CFG="feature_dataset-TCGA-BRCA-$TILE_PRETEXT.yaml"
+DATA_CFG="feature_dataset-TCGA-BRCA-archive-$TILE_PRETEXT.yaml"
 AGGREGATOR_NAME="dual-clam-mb-gated"
 ENCODER_ARCHITECTURE="resnet50"
 
