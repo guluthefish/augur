@@ -23,7 +23,7 @@ checkpoint:
   mode: min
   save_top_k: 5
   save_last: true
-  every_n_epochs: 5
+  every_n_epochs: 1
   filename: prov-gigapath-hematoxylin-{epoch:02d}
 logger:
   save_dir: outputs/model_training/lightning_logs

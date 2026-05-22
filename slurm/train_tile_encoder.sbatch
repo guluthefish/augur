@@ -2,11 +2,11 @@
 #SBATCH --job-name=magnification
 #SBATCH --gres=gpu:2
 #SBATCH --partition=general
-#SBATCH --qos=long
-#SBATCH --time=7-00:00:00
+#SBATCH --qos=medium
+#SBATCH --time=1-12:00:00
 #SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
+#SBATCH --mem=64G
 #SBATCH --output=slurm/output/resnet50-magnification-%j.out
 #SBATCH --error=slurm/output/resnet50-magnification-%j.err
 
