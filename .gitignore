@@ -262,10 +262,9 @@ sigprofiler_volume/
 # Logs
 logs/
 log_files/
-outputs/*
-!outputs/visualization
+outputs/
 checkpoints/
-report/*
+report/
 
 # Archives
 archives/
