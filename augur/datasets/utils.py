@@ -384,9 +384,7 @@ def split_slide_records_with_budget(
         scale = n_unlabeled / total_unlabeled_target
         scaled = [int(math.floor(u * scale)) for u in unlabeled_targets]
         remainder = n_unlabeled - sum(scaled)
-        fractional = [
-            (unlabeled_targets[i] * scale) - scaled[i] for i in range(3)
-        ]
+        fractional = [(unlabeled_targets[i] * scale) - scaled[i] for i in range(3)]
         order = sorted(range(3), key=lambda i: -fractional[i])
         for i in order[:remainder]:
             scaled[i] += 1
@@ -397,7 +395,10 @@ def split_slide_records_with_budget(
     train_labeled = labeled_ids[:labeled_train_n]
     val_labeled = labeled_ids[labeled_train_n : labeled_train_n + labeled_val_n]
     test_labeled = labeled_ids[
-        labeled_train_n + labeled_val_n : labeled_train_n + labeled_val_n + labeled_test_n
+        labeled_train_n
+        + labeled_val_n : labeled_train_n
+        + labeled_val_n
+        + labeled_test_n
     ]
 
     train_unlabeled = unlabeled_ids[:u_train]
@@ -821,10 +822,10 @@ def load_tissue_mask_label_for_free_tile(
     output_per_l0 = output_size / tile_extent_l0
 
     for roi_row in slide_rois.itertuples(index=False):
-        roi_xmin = int(roi_row.xmin)
-        roi_ymin = int(roi_row.ymin)
-        roi_xmax = int(roi_row.xmax)
-        roi_ymax = int(roi_row.ymax)
+        roi_xmin = int(roi_row.xmin)  # type: ignore
+        roi_ymin = int(roi_row.ymin)  # type: ignore
+        roi_xmax = int(roi_row.xmax)  # type: ignore
+        roi_ymax = int(roi_row.ymax)  # type: ignore
 
         ix_lo = max(tile_x_l0, float(roi_xmin))
         iy_lo = max(tile_y_l0, float(roi_ymin))
@@ -845,7 +846,9 @@ def load_tissue_mask_label_for_free_tile(
                     mask_path,
                 )
             continue
-        mask_np = cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)  # pylint: disable=no-member
+        mask_np = cv2.imread(  # pylint: disable=no-member
+            mask_path, cv2.IMREAD_UNCHANGED  # pylint: disable=no-member
+        )
         if mask_np is None:
             if logger is not None:
                 logger.warning("Failed to read BCSS tissue mask: %s", mask_path)
