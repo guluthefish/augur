@@ -3,9 +3,9 @@
 import torch
 import yaml
 
+from augur.datasets.cancer_subtyping import UNKNOWN_SUBTYPE_CLASS
 from augur.datasets.factory import get_dataset_from_config
 from augur.datasets.tcga_slide_dataset import (
-    UNKNOWN_SUBTYPE_CLASS,
     TCGASlideDataset,
     _SlideDataset,
 )

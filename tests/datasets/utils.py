@@ -12,7 +12,7 @@ from augur.datasets.utils import (
     as_image_tensor,
     as_mask_tensor,
     compute_tissue_mask,
-    derive_bcss_slide_name,
+    derive_tissue_slide_name,
     enumerate_slide_tile_centers,
     load_slide_records,
     load_tissue_mask_label,
@@ -209,24 +209,24 @@ def _test_compute_tissue_mask():
     print("[OK] compute_tissue_mask test passed!")
 
 
-def _test_derive_bcss_slide_name():
-    """Test that BCSS slide names are derived correctly from slide filenames."""
-    print("Testing derive_bcss_slide_name...")
+def _test_derive_tissue_slide_name():
+    """Test that tissue slide names are derived correctly from slide filenames."""
+    print("Testing derive_tissue_slide_name...")
     slide_path = "data/TCGA-BRCA-test/ordered_data/TCGA-A1-A0SK/images/66fd32f2-3f81-4914-9394-4795414893bd/TCGA-A1-A0SK-01Z-00-DX1.A44D70FA-4D96-43F4-9DD7-A61535786297.svs"
 
     # Check with submitter_id
-    slide_name = derive_bcss_slide_name(slide_path, "TCGA-A1-A0SK")
+    slide_name = derive_tissue_slide_name(slide_path, "TCGA-A1-A0SK")
     assert (
         slide_name == "TCGA-A1-A0SK-DX1"
     ), f"Expected TCGA-A1-A0SK-DX1. Got: {slide_name}"
 
     # Check without submitter_id
-    slide_name = derive_bcss_slide_name(slide_path, None)
+    slide_name = derive_tissue_slide_name(slide_path, None)
     assert (
         slide_name == "TCGA-A1-A0SK-DX1"
     ), f"Expected TCGA-A1-A0SK-DX1. Got: {slide_name}"
 
-    print("[OK] derive_bcss_slide_name test passed!")
+    print("[OK] derive_tissue_slide_name test passed!")
 
 
 def _test_sample_tile_record_in_roi_bounds():
@@ -245,14 +245,14 @@ def _test_sample_tile_record_in_roi_bounds():
     slide_name = "TCGA-A1-A0SK-DX1"
     slide_record = None
     for s in slide_records:
-        if derive_bcss_slide_name(s.slide_path) == slide_name:
+        if derive_tissue_slide_name(s.slide_path) == slide_name:
             slide_record = s
             break
     assert (
         slide_record is not None
     ), f"No slide record found for slide_name {slide_name}"
 
-    roi_name = derive_bcss_slide_name(slide_record.slide_path)
+    roi_name = derive_tissue_slide_name(slide_record.slide_path)
     xmin, ymin, xmax, ymax = 45749, 25055, 49789, 27991
     tile_record = sample_tile_record_in_roi_bounds(
         slide_record=slide_record,
@@ -281,7 +281,7 @@ def _test_sample_tile_record_in_roi_bounds():
 
 
 def _test_load_tissue_mask():
-    """Test that BCSS tissue masks are padded with label 0 outside the ROI."""
+    """Test that tissue masks are padded with label 0 outside the ROI."""
     print("Testing load_tissue_mask...")
 
     root_dir = "data/TCGA-BRCA-test"
@@ -296,7 +296,7 @@ def _test_load_tissue_mask():
     slide_name = "TCGA-A1-A0SK-DX1"
     slide_record = None
     for s in slide_records:
-        if derive_bcss_slide_name(s.slide_path) == slide_name:
+        if derive_tissue_slide_name(s.slide_path) == slide_name:
             slide_record = s
             break
     assert (
@@ -304,7 +304,7 @@ def _test_load_tissue_mask():
     ), f"No slide record found for slide_name {slide_name}"
     slide = OpenSlide(slide_record.slide_path)
 
-    roi_name = derive_bcss_slide_name(slide_record.slide_path)
+    roi_name = derive_tissue_slide_name(slide_record.slide_path)
     xmin, ymin, xmax, ymax = 45749, 25055, 49789, 27991
     tile_record = sample_tile_record_in_roi_bounds(
         slide_record=slide_record,
@@ -681,8 +681,9 @@ def _test_resolve_slide_pretext_label_path():
     # Atlas-driven resolution returns an existing file for each supported task.
     for pretext_task in (
         "sbs_regression",
-        "sbs_thresholded_multilabel",
-        "sbs_ranked_multilabel",
+        "dbs_regression",
+        "id_regression",
+        "cnv_regression",
     ):
         resolved_via_atlas = resolve_slide_pretext_label_path(
             root_dir, pretext_task, None
@@ -787,7 +788,7 @@ def test_all_datasets_utils():
     _test_split_slide_records()
     _test_scaled_thumbnail_size()
     _test_compute_tissue_mask()
-    _test_derive_bcss_slide_name()
+    _test_derive_tissue_slide_name()
     _test_sample_tile_record_in_roi_bounds()
     _test_load_tissue_mask()
     _test_as_image_tensor()
