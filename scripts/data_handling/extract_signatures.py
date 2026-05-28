@@ -1,4 +1,4 @@
-"""Extract SBS labels from downloaded data based on the manifest."""
+"""Extract mutational signature labels from downloaded data based on the manifest."""
 
 import argparse
 import gzip
@@ -225,40 +225,61 @@ def prepare_inputs_for_label_extraction(
 
 SNV_FIT_CONFIGS: list[tuple[str, str, dict]] = [
     ("sbs", "96", {"collapse_to_SBS96": True}),
-    ("dbs", "DINUC", {}),
-    ("id", "ID", {}),
+    ("dbs", "DINUC", {"collapse_to_SBS96": False}),
+    ("id", "ID", {"collapse_to_SBS96": False}),
 ]
+
+
+_GDC_TO_ASCAT_COLUMNS: dict[str, str] = {
+    "GDC_Aliquot": "sample",
+    "Chromosome": "chr",
+    "Start": "startpos",
+    "End": "endpos",
+    "Major_Copy_Number": "nMajor",
+    "Minor_Copy_Number": "nMinor",
+}
 
 
 def _merge_cnv_inputs(
     cnv_input_dir: str, output_dir: str, logger: logging.Logger
 ) -> str | None:
     """
-    Concatenate per-sample TCGA allele-specific CNV segment TSVs into a single file
-    suitable for ``scna.generateCNVMatrix(file_type="TCGA", ...)``.
+    Concatenate per-sample GDC allele-specific CNV segment TSVs into a single
+    file suitable for ``scna.generateCNVMatrix(file_type="ASCAT", ...)``.
 
-    The standardized ``<submitter>_<file_id>`` filename (produced by
-    :func:`prepare_inputs_for_label_extraction`) is written into the ``GDC_Aliquot``
-    column so CN samples align with SNV samples downstream.
+    SigProfilerMatrixGenerator's CNV pipeline has no native GDC parser, so each
+    input is renamed from GDC's allele-specific schema
+    (``GDC_Aliquot, Chromosome, Start, End, Major_Copy_Number, Minor_Copy_Number``)
+    to the ASCAT schema (``sample, chr, startpos, endpos, nMajor, nMinor``). The
+    ``sample`` column is overwritten with the standardized
+    ``<submitter>_<file_id>`` filename so CN samples align with SNV samples
+    downstream.
     """
     frames: list[pd.DataFrame] = []
+    required_input_cols = set(_GDC_TO_ASCAT_COLUMNS)
     for entry in sorted(os.listdir(cnv_input_dir)):
         if not entry.endswith(".tsv"):
             continue
         path = os.path.join(cnv_input_dir, entry)
         try:
-            seg = pd.read_table(path, dtype=str)
+            seg = pd.read_table(path)
         except Exception:  # pylint: disable=broad-except
             logger.exception("Failed to read CNV input: %s", path)
             continue
         if seg.empty:
             continue
 
-        sample_id = os.path.splitext(entry)[0]
-        if "GDC_Aliquot" in seg.columns:
-            seg["GDC_Aliquot"] = sample_id
-        else:
-            seg.insert(0, "GDC_Aliquot", sample_id)
+        missing = required_input_cols.difference(seg.columns)
+        if missing:
+            logger.warning(
+                "Skipping %s: missing expected GDC allele-specific columns %s.",
+                path,
+                sorted(missing),
+            )
+            continue
+
+        seg = seg[list(_GDC_TO_ASCAT_COLUMNS)].rename(columns=_GDC_TO_ASCAT_COLUMNS)
+        seg["sample"] = os.path.splitext(entry)[0]
         frames.append(seg)
 
     if not frames:
@@ -376,8 +397,8 @@ def run_sigprofile(
         else:
             cnv_matrix_dir = os.path.join(matrix_dir, "CNV")
             os.makedirs(cnv_matrix_dir, exist_ok=True)
-            scna.generateCNVMatrix("TCGA", merged_cnv_path, "augur", cnv_matrix_dir)
-            cnv_matrix_path = os.path.join(cnv_matrix_dir, "augur.CNV48.matrix")
+            scna.generateCNVMatrix("ASCAT", merged_cnv_path, "augur", cnv_matrix_dir)
+            cnv_matrix_path = os.path.join(cnv_matrix_dir, "augur.CNV48.matrix.tsv")
             logger.info("CN48 matrix generation complete. Output: %s", cnv_matrix_path)
 
             cnv_assignment_dir = os.path.join(assignment_root, "cnv")
@@ -393,6 +414,7 @@ def run_sigprofile(
                 context_type="CNV48",
                 export_probabilities=True,
                 volume=volume,
+                collapse_to_SBS96=False,
             )
             logger.info(
                 "COSMIC CN signature assignment complete. Output directory: %s",

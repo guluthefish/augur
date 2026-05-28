@@ -65,7 +65,7 @@ from augur.datasets.utils import (
 )
 from augur.models.slide_level.dual_clam import DualCLAM
 from augur.models.tile_level.tile_model import TileModel
-from augur.utils.config import load_yaml_config
+from augur.utils.config import load_aggregator_config, load_yaml_config
 
 ATTENTION_HEAD_PREDICTED = "predicted"
 ATTENTION_HEAD_MEAN = "mean"
@@ -221,13 +221,12 @@ def _load_tile_encoder(
 
 
 def _load_aggregator(
-    model_config_path: str,
+    aggregator_cfg: dict[str, Any],
     *,
     device: torch.device,  # type: ignore[name-defined]
     logger: logging.Logger,
 ) -> DualCLAM:
     """Build the DualCLAM aggregator and load its checkpoint."""
-    aggregator_cfg = load_yaml_config(model_config_path)
     params = aggregator_cfg.get("params", {})
     if not isinstance(params, dict):
         raise TypeError("Aggregator config 'params' must be a dict.")
@@ -577,7 +576,7 @@ def _derive_slide_record(slide_path: str) -> SlideRecord:
 def compute_slide_attention(
     *,
     data_config_path: str,
-    model_config_path: str,
+    aggregator_cfg: dict[str, Any],
     slide_path: str,
     features_dir: str | None = None,
     tile_model_config_path: str | None = None,
@@ -613,8 +612,10 @@ def compute_slide_attention(
     ----------
     data_config_path:
         Slide-dataset YAML.
-    model_config_path:
-        Aggregator YAML (must include ``params`` and ``checkpoint_path``).
+    aggregator_cfg:
+        Merged aggregator config dict (must include ``params`` and
+        ``checkpoint_path``). Build it via
+        :func:`augur.utils.config.load_aggregator_config`.
     slide_path:
         Path to the ``.svs`` slide.
     features_dir:
@@ -670,7 +671,7 @@ def compute_slide_attention(
         white_threshold,
     )
 
-    aggregator = _load_aggregator(model_config_path, device=device, logger=logger)
+    aggregator = _load_aggregator(aggregator_cfg, device=device, logger=logger)
     num_main_branches = int(aggregator.backbone.num_main_branches)
     unknown_class_index = aggregator.task_kwargs.get(aggregator.main_task, {}).get(
         "unknown_class_index", 0
@@ -1664,7 +1665,7 @@ def export_attention_assets(
 def visualize(
     *,
     data_config_path: str,
-    model_config_path: str,
+    aggregator_cfg: dict[str, Any],
     tile_model_config_path: str,
     slide_path: str,
     features_dir: str | None,
@@ -1689,7 +1690,7 @@ def visualize(
     logger = _setup_logger()
     result = compute_slide_attention(
         data_config_path=data_config_path,
-        model_config_path=model_config_path,
+        aggregator_cfg=aggregator_cfg,
         slide_path=slide_path,
         features_dir=features_dir,
         tile_model_config_path=tile_model_config_path,
@@ -1788,9 +1789,62 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Slide-dataset YAML config (used for tile-extraction parameters and root_dir).",
     )
     parser.add_argument(
-        "--model-config",
-        default="configs/aggregator-dual-clam-mb-gated-resnet50-full.yaml",
-        help="Aggregator YAML config; provides DualCLAM params and checkpoint_path.",
+        "--aggregator-config-dir",
+        default="configs/aggregator",
+        help=(
+            "Directory holding the partial aggregator YAMLs (base-/subtask-/"
+            "variant-/add-on-/encoder-/pretext-/optimizer-/lr-scheduler-)."
+        ),
+    )
+    parser.add_argument(
+        "--base",
+        default="clam",
+        choices=["clam", "mil"],
+        help="Bag-level aggregator architecture.",
+    )
+    parser.add_argument(
+        "--subtask",
+        default="sbs",
+        choices=["sbs", "dbs", "id", "cnv"],
+        help=(
+            "Optional aggregator-level auxiliary subtask (COSMIC signature "
+            "regression). Pass '' to omit. Only valid with --base clam."
+        ),
+    )
+    parser.add_argument(
+        "--variant",
+        default="mb",
+        choices=["sb", "mb", "mean", "max", "attention"],
+        help="Variant within the base.",
+    )
+    parser.add_argument(
+        "--add-on",
+        default="gated",
+        choices=["", "gated"],
+        help="Optional attention add-on; pass '' to omit.",
+    )
+    parser.add_argument(
+        "--encoder",
+        default="resnet50",
+        help="Encoder architecture token (e.g. 'resnet50', 'prov-gigapath').",
+    )
+    parser.add_argument(
+        "--pretext",
+        default="full",
+        choices=["full", "hematoxylin", "jigmag", "magnification", "none"],
+        help="Encoder pretext task; selects pretext-{name}.yaml.",
+    )
+    parser.add_argument(
+        "--optimizer",
+        default="adamw",
+        choices=["adamw"],
+        help="Optimizer recipe partial.",
+    )
+    parser.add_argument(
+        "--lr-scheduler",
+        default="cosine",
+        choices=["cosine"],
+        help="LR-scheduler recipe partial.",
     )
     parser.add_argument(
         "--tile-model-config",
@@ -1922,9 +1976,21 @@ def main() -> None:
         if isinstance(root_dir, str):
             features_dir = _default_features_dir(root_dir, args.tile_model_config)
 
+    aggregator_cfg = load_aggregator_config(
+        args.aggregator_config_dir,
+        base=args.base,
+        variant=args.variant,
+        add_on=(args.add_on or None),
+        subtask=(args.subtask or None),
+        encoder=args.encoder,
+        pretext=args.pretext,
+        optimizer=args.optimizer,
+        lr_scheduler=args.lr_scheduler,
+    )
+
     visualize(
         data_config_path=args.data_config,
-        model_config_path=args.model_config,
+        aggregator_cfg=aggregator_cfg,
         tile_model_config_path=args.tile_model_config,
         slide_path=args.slide_path,
         features_dir=features_dir,

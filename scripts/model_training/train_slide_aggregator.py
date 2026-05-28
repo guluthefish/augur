@@ -194,7 +194,7 @@ def _warn_on_task_mismatch(
     datamodule: DatasetABC,
     logger: logging.Logger,
 ) -> None:
-    """Fail fast when the datamodule's main/pretext tasks diverge from the model's.
+    """Fail fast when the datamodule's main task or subtasks diverge from the model's.
 
     A main-task mismatch is fatal because the per-task loss uses a fixed
     target shape/dtype (e.g. ``(B,)`` long for ``subtyping`` cross-entropy vs.
@@ -212,23 +212,23 @@ def _warn_on_task_mismatch(
             "model so the main tasks line up."
         )
 
-    model_pretext = list(getattr(model, "pretext_tasks", []) or [])
-    dataset_pretext = list(getattr(datamodule, "pretext_tasks", []) or [])
-    logger.info("Model pretext_tasks: %s", model_pretext)
-    logger.info("Datamodule pretext_tasks: %s", dataset_pretext)
+    model_subtask = list(getattr(model, "subtasks", []) or [])
+    dataset_subtask = list(getattr(datamodule, "subtasks", []) or [])
+    logger.info("Model subtasks: %s", model_subtask)
+    logger.info("Datamodule subtasks: %s", dataset_subtask)
 
-    missing = sorted(set(model_pretext).difference(dataset_pretext))
+    missing = sorted(set(model_subtask).difference(dataset_subtask))
     if missing:
         raise ValueError(
-            "Datamodule is missing pretext task(s) required by the model: "
-            f"{missing}. Model pretext_tasks={model_pretext}. "
-            f"Datamodule pretext_tasks={dataset_pretext}."
+            "Datamodule is missing subtask(s) required by the model: "
+            f"{missing}. Model subtasks={model_subtask}. "
+            f"Datamodule subtasks={dataset_subtask}."
         )
 
-    extra = sorted(set(dataset_pretext).difference(model_pretext))
+    extra = sorted(set(dataset_subtask).difference(model_subtask))
     if extra:
         logger.info(
-            "Datamodule provides extra pretext task(s) the model ignores: %s",
+            "Datamodule provides extra subtask(s) the model ignores: %s",
             extra,
         )
 
@@ -475,19 +475,25 @@ def _build_checkpoint_callback(
 def _build_arg_parser() -> argparse.ArgumentParser:
     """Create the CLI parser for the training script.
 
-    The aggregator config is composed from five partial axes under
+    The aggregator config is composed from eight partial axes under
     ``--config-dir/aggregator/`` (see
     :func:`augur.utils.config.load_aggregator_config`):
 
-    - ``--base``: bag-level architecture (``clam``/``dual-clam``/``mil``).
-    - ``--variant``: variant within the base. CLAM-family uses ``sb`` /
-      ``mb``; MIL uses ``mean`` / ``max`` / ``attention``.
+    - ``--base``: bag-level architecture (``clam`` or ``mil``).
+    - ``--subtask``: optional aggregator-level auxiliary subtask layered
+      onto the CLAM base. One of ``sbs``, ``dbs``, ``id``, ``cnv``
+      (COSMIC signature classes). Omit for plain CLAM. Not allowed for
+      MIL.
+    - ``--variant``: variant within the base. CLAM uses ``sb`` / ``mb``;
+      MIL uses ``mean`` / ``max`` / ``attention``.
     - ``--add-on``: optional attention add-on; ``gated`` is the only
       supported value and only applies with attention-based variants.
     - ``--encoder``: encoder architecture (e.g. ``resnet50``,
       ``prov-gigapath``) — controls ``enc_dim``.
     - ``--pretext``: encoder pretext task; consumed only to compose the
-      aggregator's ``checkpoint_path``.
+      aggregator's ``checkpoint_path`` (and to select the matching
+      ``pretext-{name}.yaml`` marker partial).
+    - ``--optimizer`` / ``--lr-scheduler``: training-recipe partials.
     """
     parser = argparse.ArgumentParser(description="Train a slide-level aggregator.")
 
@@ -501,7 +507,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default="aggregator",
         help=(
             "Subdirectory of --config-dir holding the partial aggregator "
-            "YAMLs (base-/variant-/add-on-/encoder-/pretext-)."
+            "YAMLs (base-/subtask-/variant-/add-on-/encoder-/pretext-/"
+            "optimizer-/lr-scheduler-)."
         ),
     )
     parser.add_argument(
@@ -516,16 +523,25 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--base",
-        default="dual-clam",
-        choices=["clam", "dual-clam", "mil"],
+        default="clam",
+        choices=["clam", "mil"],
         help="Bag-level architecture for the aggregator.",
+    )
+    parser.add_argument(
+        "--subtask",
+        default=None,
+        choices=["sbs", "dbs", "id", "cnv"],
+        help=(
+            "Optional aggregator-level auxiliary subtask (COSMIC signature "
+            "regression). Only valid with `--base clam`. Omit for plain CLAM."
+        ),
     )
     parser.add_argument(
         "--variant",
         default="mb",
         choices=["sb", "mb", "mean", "max", "attention"],
         help=(
-            "Variant within the base: 'sb'/'mb' for CLAM-family; "
+            "Variant within the base: 'sb'/'mb' for CLAM; "
             "'mean'/'max'/'attention' for MIL."
         ),
     )
@@ -581,9 +597,10 @@ def train(
 
     ``model_config`` is the merged aggregator config produced by
     :func:`augur.utils.config.load_aggregator_config` from the
-    base/variant/add-on/encoder/pretext partials under
-    ``aggregator_config_dir``. Relative ``tile_model_config`` paths inside
-    the merged dict, if any, are resolved against ``aggregator_config_dir``.
+    base/subtask/variant/add-on/encoder/pretext (plus optimizer +
+    lr-scheduler) partials under ``aggregator_config_dir``. Relative
+    ``tile_model_config`` paths inside the merged dict, if any, are
+    resolved against ``aggregator_config_dir``.
     """
     resolved_dataset_config_path = os.path.abspath(dataset_config_path)
     resolved_training_config_path = os.path.abspath(training_config_path)
@@ -787,13 +804,17 @@ def main() -> None:
         base=args.base,
         variant=args.variant,
         add_on=args.add_on,
+        subtask=args.subtask,
         encoder=args.encoder,
         pretext=args.pretext,
         optimizer=args.optimizer,
         lr_scheduler=args.lr_scheduler,
     )
 
-    run_name_tokens = [args.base, args.variant]
+    run_name_tokens = [args.base]
+    if args.subtask is not None:
+        run_name_tokens.append(args.subtask)
+    run_name_tokens.append(args.variant)
     if args.add_on is not None:
         run_name_tokens.append(args.add_on)
     run_name_tokens.extend([args.encoder, args.pretext])
