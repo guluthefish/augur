@@ -1,7 +1,7 @@
 name: TCGAFeatureDataset
 params:
   root_dir: data/TCGA-BRCA-test
-  features_dir: data/TCGA-BRCA-test/features/resnet50-none
+  features_dir: data/TCGA-BRCA-test/features/resnet50-full
   main_task: subtyping
   pretext_tasks:
     - sbs_regression

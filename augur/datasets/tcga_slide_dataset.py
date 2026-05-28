@@ -41,7 +41,7 @@ SUPPORTED_PRETEXT_TASKS: tuple[str, ...] = (
     "sbs_thresholded_multilabel",
     "sbs_ranked_multilabel",
 )
-UNKNOWN_SUBTYPE_CLASS = "Other, specify"
+UNKNOWN_SUBTYPE_CLASS = "Unknown"
 
 
 def _normalize_subtype_label(value: Any) -> str:
@@ -64,17 +64,17 @@ def _load_subtyping_labels(
     labels_path: str,
     logger: logging.Logger | None = None,
 ) -> tuple[dict[str, int], tuple[str, ...]]:
-    """Load slide-level subtyping labels with ``Other, specify`` fixed at index 0."""
+    """Load slide-level subtyping labels with ``Unknown`` fixed at index 0."""
     labels_df = pd.read_table(labels_path, dtype=str)
-    required_columns = {"bcr_patient_barcode", "histologic_diagnosis"}
+    required_columns = {"submitter_id", "subtype"}
     missing_columns = required_columns.difference(labels_df.columns)
     if missing_columns:
         raise ValueError(
             f"Subtyping label table is missing column(s): {sorted(missing_columns)}"
         )
 
-    submitter_ids = labels_df["bcr_patient_barcode"].astype(str).str.strip()
-    raw_values = labels_df["histologic_diagnosis"]
+    submitter_ids = labels_df["submitter_id"].astype(str).str.strip()
+    raw_values = labels_df["subtype"]
 
     class_to_index: dict[str, int] = {UNKNOWN_SUBTYPE_CLASS: 0}
     submitter_labels: dict[str, int] = {}
@@ -392,9 +392,7 @@ class _SlideDataset(Dataset[dict[str, Any]]):
         # Unreachable: the loop either returns a sample or raises above.
         raise RuntimeError("unreachable in _SlideDataset.__getitem__")
 
-    def _load_sample(
-        self: _SlideDataset, slide_record: SlideRecord
-    ) -> dict[str, Any]:
+    def _load_sample(self: _SlideDataset, slide_record: SlideRecord) -> dict[str, Any]:
         """Read one slide's tile bag and assemble its sample dict."""
         centers = self.centers_by_slide_id[slide_record.slide_id]
         slide = self._get_slide(slide_record.slide_path)
@@ -475,7 +473,7 @@ class TCGASlideDataset(DatasetABC):
     Main task is slide-level subtyping (classification): the per-submitter
     histologic-subtype class is read from
     ``<root_dir>/atlases/slide_main_atlas.txt`` (or ``main_labels_path``) and
-    emitted as a scalar ``long`` at ``batch["target"]``. ``Other, specify`` is
+    emitted as a scalar ``long`` at ``batch["target"]``. ``Unknown`` is
     fixed at class index 0 (treat as the unknown class for ignore-index losses).
 
     Pretext tasks are slide-level SBS exposure vectors keyed by the entries
@@ -998,6 +996,31 @@ class TCGASlideDataset(DatasetABC):
             self._resolved_manifest_path,
         )
 
+        # Backfill submitters that are missing from the main-task label table
+        # as Unknown (class index 0). Slides without a pretext label are still
+        # dropped because SBS regression targets cannot be imputed.
+        missing_main_submitters = {
+            record.submitter_id
+            for record in slide_records
+            if record.submitter_id not in self._main_submitter_labels
+        }
+        if missing_main_submitters:
+            for submitter_id in missing_main_submitters:
+                self._main_submitter_labels[submitter_id] = 0
+            assigned_slide_count = sum(
+                1
+                for record in slide_records
+                if record.submitter_id in missing_main_submitters
+            )
+            self.logger.warning(
+                "Assigned %d slide(s) across %d submitter(s) to Unknown "
+                "(class 0) for main task '%s' because their submitter was "
+                "missing from the label table.",
+                assigned_slide_count,
+                len(missing_main_submitters),
+                self.main_task,
+            )
+
         labelled_records = [
             record
             for record in slide_records
@@ -1010,7 +1033,8 @@ class TCGASlideDataset(DatasetABC):
         dropped = len(slide_records) - len(labelled_records)
         if dropped:
             self.logger.warning(
-                "Dropped %d slide(s) without matching label(s) for main task '%s'.",
+                "Dropped %d slide(s) without matching pretext label(s) for "
+                "main task '%s'.",
                 dropped,
                 self.main_task,
             )

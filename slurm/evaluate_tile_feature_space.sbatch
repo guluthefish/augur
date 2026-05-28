@@ -1,23 +1,23 @@
 #!/bin/sh
-#SBATCH --job-name=eval-magnification
+#SBATCH --job-name=eval-hematoxylin
 #SBATCH --gres=gpu:1
 #SBATCH --partition=general
 #SBATCH --qos=short
 #SBATCH --time=04:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH --output=slurm/output/evaluation-resnet50-magnification-%j.out
-#SBATCH --error=slurm/output/evaluation-resnet50-magnification-%j.err
+#SBATCH --output=slurm/output/evaluation-resnet50-hematoxylin-%j.out
+#SBATCH --error=slurm/output/evaluation-resnet50-hematoxylin-%j.err
 
 set -eu
 
 REPO="/tudelft.net/staff-umbrella/IMGEN"
 IMG="$REPO/containers/augur.sif"
 OUTDIR="$REPO/slurm/output"
-MODEL_NAME="resnet50-magnification"
+MODEL_NAME="resnet50-hematoxylin"
 MODEL_CONFIG="$REPO/configs/model-${MODEL_NAME}.yaml"
 EMBEDDING_SOURCE="encoder"
-DATA_CONFIG="$REPO/configs/tile_dataset-TCGA-BRCA-magnification.yaml"
+DATA_CONFIG="$REPO/configs/tile_dataset-TCGA-BRCA-hematoxylin.yaml"
 
 
 # DAIC: use node-local /tmp for temporary data and clean it up
