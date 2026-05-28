@@ -15,7 +15,7 @@ from augur.datasets.tcga_feature_dataset import (
     TCGAFeatureDataset,
     _FeatureBagDataset,
 )
-from augur.datasets.tcga_slide_dataset import UNKNOWN_SUBTYPE_CLASS
+from augur.datasets.cancer_subtyping import UNKNOWN_SUBTYPE_CLASS
 
 # Shared test fixtures: real test cohort + its precomputed feature cache.
 _TEST_ROOT_DIR = "data/TCGA-BRCA-test"

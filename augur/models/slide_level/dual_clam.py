@@ -1,9 +1,11 @@
-"""CLAM-inspired slide-level MIL model with subtyping main + SBS pretext heads.
+"""CLAM-inspired slide-level MIL model with subtyping main + mutational-signature pretext heads.
 
 Implements CLAM (Clustering-constrained Attention Multiple instance learning,
 Lu et al., 2021) as a Lightning module. The main task is slide-level subtyping
-(classification, cross-entropy). Pretext tasks are SBS exposure heads
-(``sbs_regression``, ``sbs_thresholded_multilabel``, ``sbs_ranked_multilabel``).
+(classification, cross-entropy). Pretext tasks are per-submitter COSMIC
+signature exposure heads — one per signature class produced by
+:func:`scripts.data_handling.extract_signatures.extract_signature_labels`
+(``sbs_regression``, ``dbs_regression``, ``id_regression``, ``cnv_regression``).
 
 The single- and multi-branch backbones (:class:`DualCLAM_SB` /
 :class:`DualCLAM_MB`) mirror CLAM-SB and CLAM-MB from the original repo at
@@ -37,14 +39,15 @@ from augur.models.utils import (
 from augur.utils.config import load_yaml_config
 from augur.utils.metrics import (
     compute_classification_loss,
-    compute_regression_loss,
+    compute_distribution_kl_loss,
 )
 
 _SUPPORTED_MAIN_TASKS: tuple[str, ...] = ("subtyping",)
 _SUPPORTED_PRETEXT_TASKS: tuple[str, ...] = (
     "sbs_regression",
-    "sbs_thresholded_multilabel",
-    "sbs_ranked_multilabel",
+    "dbs_regression",
+    "id_regression",
+    "cnv_regression",
 )
 
 
@@ -922,14 +925,17 @@ class DualCLAM(ModelABC):
         prediction: Tensor,
         target: Tensor,
     ) -> Tensor:
-        """Dispatch the pretext SBS loss based on the pretext task name."""
+        """Dispatch the pretext mutational-signature loss based on the task name."""
         match pretext_task:
-            case "sbs_regression" | "sbs_ranked_multilabel":
-                return compute_regression_loss(prediction, target)
-            case "sbs_thresholded_multilabel":
-                return F.binary_cross_entropy_with_logits(
-                    prediction.float(), target.float()
-                )
+            case (
+                "sbs_regression"
+                | "dbs_regression"
+                | "id_regression"
+                | "cnv_regression"
+            ):
+                # Targets are per-submitter normalized COSMIC exposure vectors
+                # (row-sum 1), so distributional KL is the appropriate loss.
+                return compute_distribution_kl_loss(prediction, target)
             case _:
                 raise ValueError(
                     f"No default loss defined for pretext task '{pretext_task}'."

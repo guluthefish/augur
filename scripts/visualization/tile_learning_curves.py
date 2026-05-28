@@ -105,7 +105,7 @@ def plot_learning_curves(
     output_path: str,
     metric: str,
     smooth_window: int,
-    stage: str,
+    stage: str,  # pylint: disable=unused-argument
     logger: logging.Logger,
 ) -> None:
     """Render the comparison figure for a list of model configs.

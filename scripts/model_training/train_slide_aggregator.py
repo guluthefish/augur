@@ -20,7 +20,7 @@ from augur.models.model_abc import ModelABC
 from augur.models.slide_level.factory import (
     get_module_from_config as get_slide_module_from_config,
 )
-from augur.utils.config import load_yaml_config
+from augur.utils.config import load_aggregator_config, load_yaml_config
 from augur.utils.logger import setup_logger
 
 mp.set_sharing_strategy("file_system")
@@ -98,11 +98,11 @@ def _resolve_tile_model_paths(
 def _resolve_aggregator_component_paths(
     config: dict[str, Any],
     *,
-    config_path: str,
+    base_dir: str,
 ) -> dict[str, Any]:
     """Resolve the aggregator's ``tile_model_config`` path and inline-load it.
 
-    The aggregator YAML references the tile-level model via a relative
+    The aggregator config may reference the tile-level model via a relative
     ``params.tile_model_config`` path. The aggregator's ``from_config``
     (``DualCLAM`` / ``EmbeddingMIL``) can load a string path via
     ``_resolve_component_config``, but nested ``encoder_config`` /
@@ -113,7 +113,7 @@ def _resolve_aggregator_component_paths(
     factory receives a fully-resolved inline config regardless of CWD.
     """
     resolved_config = dict(config)
-    config_dir = os.path.dirname(os.path.abspath(config_path))
+    config_dir = os.path.abspath(base_dir)
     params = resolved_config.get("params", {})
 
     if not isinstance(params, dict):
@@ -315,23 +315,26 @@ def _resolve_resume_checkpoint_path(
 
 
 def _create_model(
-    config_path: str,
+    model_config: dict[str, Any],
     logger: logging.Logger,
     *,
+    base_dir: str,
     resume_checkpoint_path: str | None = None,
 ) -> ModelABC:
-    """Create a slide-level aggregator from a YAML config and optional checkpoint.
+    """Create a slide-level aggregator from a merged config and optional checkpoint.
 
     Dispatches via :func:`get_slide_module_from_config` so both ``DualCLAM``
     and ``EmbeddingMIL`` configs are handled uniformly. The tile encoder is
     built and preloaded internally by the aggregator's ``from_config`` using
-    the nested ``tile_model_config`` entry. The optional top-level
+    the nested ``tile_model_config`` entry, if any. The optional top-level
     aggregator ``checkpoint_path`` is then loaded here so training can
-    warm-start from a previously exported aggregator.
+    warm-start from a previously exported aggregator. ``base_dir`` is the
+    directory used to resolve any relative ``tile_model_config`` path that
+    appears in the merged config.
     """
     config = _resolve_aggregator_component_paths(
-        load_yaml_config(config_path),
-        config_path=config_path,
+        model_config,
+        base_dir=base_dir,
     )
     params = config.get("params", {})
     if not isinstance(params, dict):
@@ -470,13 +473,36 @@ def _build_checkpoint_callback(
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
-    """Create the CLI parser for the training script."""
+    """Create the CLI parser for the training script.
+
+    The aggregator config is composed from five partial axes under
+    ``--config-dir/aggregator/`` (see
+    :func:`augur.utils.config.load_aggregator_config`):
+
+    - ``--base``: bag-level architecture (``clam``/``dual-clam``/``mil``).
+    - ``--variant``: variant within the base. CLAM-family uses ``sb`` /
+      ``mb``; MIL uses ``mean`` / ``max`` / ``attention``.
+    - ``--add-on``: optional attention add-on; ``gated`` is the only
+      supported value and only applies with attention-based variants.
+    - ``--encoder``: encoder architecture (e.g. ``resnet50``,
+      ``prov-gigapath``) — controls ``enc_dim``.
+    - ``--pretext``: encoder pretext task; consumed only to compose the
+      aggregator's ``checkpoint_path``.
+    """
     parser = argparse.ArgumentParser(description="Train a slide-level aggregator.")
 
     parser.add_argument(
         "--config-dir",
         default="configs",
         help="Directory containing YAML config files.",
+    )
+    parser.add_argument(
+        "--aggregator-config-subdir",
+        default="aggregator",
+        help=(
+            "Subdirectory of --config-dir holding the partial aggregator "
+            "YAMLs (base-/variant-/add-on-/encoder-/pretext-)."
+        ),
     )
     parser.add_argument(
         "--training-config",
@@ -489,37 +515,80 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Filename of the data YAML config under --config-dir.",
     )
     parser.add_argument(
-        "--aggregator-name",
-        default="dual-clam-mb",
-        help="Aggregator name segment used in the model config filename.",
+        "--base",
+        default="dual-clam",
+        choices=["clam", "dual-clam", "mil"],
+        help="Bag-level architecture for the aggregator.",
     )
     parser.add_argument(
-        "--encoder-architecture",
+        "--variant",
+        default="mb",
+        choices=["sb", "mb", "mean", "max", "attention"],
+        help=(
+            "Variant within the base: 'sb'/'mb' for CLAM-family; "
+            "'mean'/'max'/'attention' for MIL."
+        ),
+    )
+    parser.add_argument(
+        "--add-on",
+        default=None,
+        choices=["gated"],
+        help=(
+            "Optional attention add-on. Only 'gated' is supported and only "
+            "with attention-based variants (sb/mb/attention). Omit to apply "
+            "no add-on."
+        ),
+    )
+    parser.add_argument(
+        "--encoder",
         default="resnet50",
-        help="Encoder architecture segment used in the model config filename.",
+        help="Encoder architecture token (e.g. 'resnet50', 'prov-gigapath').",
     )
     parser.add_argument(
-        "--tile-pretext",
+        "--pretext",
         default="full",
-        help="Tile-level pretext segment used in the model config filename.",
+        choices=["full", "hematoxylin", "jigmag", "magnification", "none"],
+        help="Encoder pretext task; used to compose the aggregator checkpoint path.",
+    )
+    parser.add_argument(
+        "--optimizer",
+        default="adamw",
+        choices=["adamw"],
+        help="Optimizer recipe; selects `optimizer-{name}.yaml` under the partial dir.",
+    )
+    parser.add_argument(
+        "--lr-scheduler",
+        default="cosine",
+        choices=["cosine"],
+        help=(
+            "LR scheduler recipe; selects `lr-scheduler-{name}.yaml` under the "
+            "partial dir."
+        ),
     )
 
     return parser
 
 
 def train(
-    model_config_path: str,
+    model_config: dict[str, Any],
     dataset_config_path: str,
     training_config_path: str,
     run_name: str,
+    *,
+    aggregator_config_dir: str,
 ) -> None:
-    """Run training for the slide aggregator."""
-    resolved_model_config_path = os.path.abspath(model_config_path)
+    """Run training for the slide aggregator.
+
+    ``model_config`` is the merged aggregator config produced by
+    :func:`augur.utils.config.load_aggregator_config` from the
+    base/variant/add-on/encoder/pretext partials under
+    ``aggregator_config_dir``. Relative ``tile_model_config`` paths inside
+    the merged dict, if any, are resolved against ``aggregator_config_dir``.
+    """
     resolved_dataset_config_path = os.path.abspath(dataset_config_path)
     resolved_training_config_path = os.path.abspath(training_config_path)
+    resolved_aggregator_config_dir = os.path.abspath(aggregator_config_dir)
 
-    if not os.path.exists(resolved_model_config_path):
-        raise FileNotFoundError(f"Model config not found: {resolved_model_config_path}")
     if not os.path.exists(resolved_dataset_config_path):
         raise FileNotFoundError(
             f"Dataset config not found: {resolved_dataset_config_path}"
@@ -572,7 +641,7 @@ def train(
     seed_everything(seed, workers=True)
 
     logger.info("Starting training run '%s'", run_name)
-    logger.info("Model config: %s", resolved_model_config_path)
+    logger.info("Aggregator config dir: %s", resolved_aggregator_config_dir)
     logger.info("Dataset config: %s", resolved_dataset_config_path)
     logger.info("Training config: %s", resolved_training_config_path)
 
@@ -585,8 +654,9 @@ def train(
         logger.info("Resuming training from Lightning checkpoint %s", resume_from)
 
     model = _create_model(
-        resolved_model_config_path,
+        model_config,
         logger,
+        base_dir=resolved_aggregator_config_dir,
         resume_checkpoint_path=resume_from,
     )
     datamodule = _load_dataset(resolved_dataset_config_path, logger)
@@ -680,7 +750,6 @@ def train(
             ckpt_path=test_ckpt_path,
         )
 
-    model_config = load_yaml_config(resolved_model_config_path)
     export_checkpoint_path = model_config.get("checkpoint_path")
     if export_checkpoint_path:
         if checkpoint_callback.best_model_path:
@@ -709,19 +778,33 @@ def main() -> None:
 
     training_config_path = os.path.join(args.config_dir, args.training_config)
     data_config_path = os.path.join(args.config_dir, args.data_config)
-    model_config_path = os.path.join(
-        args.config_dir,
-        f"aggregator-{args.aggregator_name}-{args.encoder_architecture}-{args.tile_pretext}.yaml",
-    )
-    full_model_name = (
-        f"{args.aggregator_name}-{args.encoder_architecture}-{args.tile_pretext}"
+    aggregator_config_dir = os.path.join(
+        args.config_dir, args.aggregator_config_subdir
     )
 
+    model_config = load_aggregator_config(
+        aggregator_config_dir,
+        base=args.base,
+        variant=args.variant,
+        add_on=args.add_on,
+        encoder=args.encoder,
+        pretext=args.pretext,
+        optimizer=args.optimizer,
+        lr_scheduler=args.lr_scheduler,
+    )
+
+    run_name_tokens = [args.base, args.variant]
+    if args.add_on is not None:
+        run_name_tokens.append(args.add_on)
+    run_name_tokens.extend([args.encoder, args.pretext])
+    full_model_name = "-".join(run_name_tokens)
+
     train(
-        model_config_path=model_config_path,
+        model_config=model_config,
         dataset_config_path=data_config_path,
         training_config_path=training_config_path,
         run_name=full_model_name,
+        aggregator_config_dir=aggregator_config_dir,
     )
 
 

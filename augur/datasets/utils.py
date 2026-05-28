@@ -111,7 +111,7 @@ def resolve_manifest_path(
 
     atlas_path = os.path.join(root_dir, "atlases", "manifest_atlas.txt")
     manifest_path = _resolve_path_from_atlas(
-        atlas_path, entry_key="manifest_downloaded", logger=logger
+        atlas_path, entry_key="final_manifest", logger=logger
     )
 
     return manifest_path
@@ -147,9 +147,9 @@ def resolve_slide_pretext_label_path(
 ) -> str:
     """Resolve the slide-level pretext-task label table path.
 
-    The atlas at ``root_dir/atlases/slide_pretext_atlas.txt`` maps a ``task``
-    key (e.g. ``"sbs_regression"``, ``"sbs_thresholded_multilabel"``,
-    ``"sbs_ranked_multilabel"``) to a label table path.
+    The atlas at ``root_dir/atlases/slide_subtask_atlas.txt`` maps a ``task``
+    key (e.g. ``"sbs_regression"``, ``"dbs_regression"``, ``"id_regression"``,
+    or ``"cnv_regression"``) to a label table path.
     """
 
     if labels_path is not None:
@@ -159,7 +159,7 @@ def resolve_slide_pretext_label_path(
             logger.error("Slide pretext labels file not found: %s", labels_path)
         raise FileNotFoundError(f"Slide pretext labels file not found: {labels_path}")
 
-    atlas_path = os.path.join(root_dir, "atlases", "slide_pretext_atlas.txt")
+    atlas_path = os.path.join(root_dir, "atlases", "slide_subtask_atlas.txt")
     return _resolve_path_from_atlas(atlas_path, entry_key=task, logger=logger)
 
 
@@ -176,7 +176,7 @@ def resolve_tissue_label_metadata_path(
     Parameters
     ----------
     root_dir:
-        Root directory containing the "atlases/tissues_label_atlas.txt" file if any of the paths are not provided.
+        Root directory containing the "atlases/tissue_label_atlas.txt" file if any of the paths are not provided.
     gt_path:
         Optional explicit path to the ground truth labels. If None, it will be resolved from the atlas.
     roi_path:
@@ -191,7 +191,7 @@ def resolve_tissue_label_metadata_path(
     tuple[str, str, str]
         The resolved paths for the ground truth labels, ROI bounds, and slide metadata.
     """
-    atlas_path = os.path.join(root_dir, "atlases", "tissues_label_atlas.txt")
+    atlas_path = os.path.join(root_dir, "atlases", "tissue_label_atlas.txt")
 
     if gt_path is not None:
         if not os.path.exists(gt_path):
@@ -629,11 +629,11 @@ def read_tile_from_record(slide: OpenSlide, record: TileRecord) -> np.ndarray:
     return np.asarray(tile, dtype=np.uint8)
 
 
-def derive_bcss_slide_name(
+def derive_tissue_slide_name(
     slide_path_or_filename: str, submitter_id: str | None = None
 ) -> str:
     """
-    Derive the BCSS slide name such as ``TCGA-A1-A0SK-DX1``.
+    Derive the tissue slide name such as ``TCGA-A1-A0SK-DX1``.
 
     Parameters
     ----------
@@ -645,7 +645,7 @@ def derive_bcss_slide_name(
     Returns
     -------
     str
-        Derived BCSS slide name.
+        Derived tissue slide name.
     """
     basename = os.path.basename(str(slide_path_or_filename).strip())
     stem = os.path.splitext(basename)[0]
@@ -669,15 +669,15 @@ def load_tissue_mask_label(
     logger: logging.Logger | None = None,
 ) -> np.ndarray:
     """
-    Load a BCSS tissue mask crop aligned to a sampled tile.
+    Load a tissue mask crop aligned to a sampled tile.
 
-    Areas that fall outside the BCSS ROI bounds are padded with label ``0``
+    Areas that fall outside the tissue ROI bounds are padded with label ``0``
     (``outside_roi``) so the returned mask always matches the tile dimensions.
 
     Parameters
     ----------
     root_dir:
-        Root directory containing the "labels/tissues/masks" folder with pre-cropped BCSS tissue masks.
+        Root directory containing the "labels/tissues/masks" folder with pre-cropped tissue masks.
     tile_record:
         TileRecord describing the location and size of the tile to load.
     slide:
@@ -693,7 +693,7 @@ def load_tissue_mask_label(
     -------
     np.ndarray
         array of shape (output_size, output_size) with dtype uint8 containing integer class labels for each pixel.
-        0 indicates areas outside the BCSS ROI, and other values indicate tissue classes within the ROI.
+        0 indicates areas outside the tissue ROI, and other values indicate tissue classes within the ROI.
     """
     if (
         tile_record.roi_xmin is None
@@ -703,14 +703,14 @@ def load_tissue_mask_label(
     ):
         if logger is not None:
             logger.warning(
-                "TileRecord is missing roi bounds required for BCSS mask loading. Returning empty mask."
+                "TileRecord is missing roi bounds required for tissue mask loading. Returning empty mask."
             )
         return np.zeros((output_size, output_size), dtype=np.uint8)
 
     if base_mpp <= 0:
         raise ValueError("base_mpp must be positive.")
 
-    slide_name = derive_bcss_slide_name(
+    slide_name = derive_tissue_slide_name(
         tile_record.slide_path, tile_record.submitter_id
     )
     mask_filename = (
@@ -720,14 +720,14 @@ def load_tissue_mask_label(
     mask_path = os.path.join(root_dir, "labels", "tissues", "masks", mask_filename)
     if not os.path.exists(mask_path):
         if logger is not None:
-            logger.error("BCSS tissue mask not found: %s", mask_path)
-        raise FileNotFoundError(f"BCSS tissue mask not found: {mask_path}")
+            logger.error("Tissue mask not found: %s", mask_path)
+        raise FileNotFoundError(f"Tissue mask not found: {mask_path}")
 
     mask_np = cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)  # pylint: disable=no-member
     if mask_np is None:
         if logger is not None:
-            logger.error("Failed to read BCSS tissue mask: %s", mask_path)
-        raise FileNotFoundError(f"Failed to read BCSS tissue mask: {mask_path}")
+            logger.error("Failed to read tissue mask: %s", mask_path)
+        raise FileNotFoundError(f"Failed to read tissue mask: {mask_path}")
 
     if mask_np.ndim == 3:
         mask_np = mask_np[..., 0]
@@ -791,15 +791,15 @@ def load_tissue_mask_label_for_free_tile(
     logger: logging.Logger | None = None,
 ) -> np.ndarray:
     """
-    Build a BCSS tissue mask aligned to a free-sampled tile by compositing every
+    Build a tissue mask aligned to a free-sampled tile by compositing every
     ROI that overlaps the tile. Pixels outside any ROI stay at class ``0``
     (``outside_roi``).
 
     Parameters
     ----------
     slide_name:
-        BCSS slide name (as produced by :func:`derive_bcss_slide_name`) used to
-        look up per-ROI mask files.
+        Tissue slide name (as produced by :func:`derive_tissue_slide_name`) used
+        to look up per-ROI mask files.
     slide_rois:
         DataFrame of ROI rows for this slide (columns ``xmin``, ``ymin``,
         ``xmax``, ``ymax``). When ``None`` or empty, an all-zero mask is
@@ -842,7 +842,7 @@ def load_tissue_mask_label_for_free_tile(
         if not os.path.exists(mask_path):
             if logger is not None:
                 logger.warning(
-                    "BCSS tissue mask missing for free-sampled tile composite: %s",
+                    "Tissue mask missing for free-sampled tile composite: %s",
                     mask_path,
                 )
             continue
@@ -851,7 +851,9 @@ def load_tissue_mask_label_for_free_tile(
         )
         if mask_np is None:
             if logger is not None:
-                logger.warning("Failed to read BCSS tissue mask: %s", mask_path)
+                logger.warning(
+                    "Failed to read tissue mask for composite: %s", mask_path
+                )
             continue
         if mask_np.ndim == 3:
             mask_np = mask_np[..., 0]
@@ -1087,7 +1089,7 @@ def sample_tile_record_in_roi_bounds(
     logger: logging.Logger | None = None,
 ) -> TileRecord:
     """
-    Sample one base-resolution tile from within a BCSS ROI.
+    Sample one base-resolution tile from within a tissue ROI.
 
     When the requested tile cannot fit fully inside the ROI, the tile center is still
     sampled inside the ROI and downstream mask loading pads the out-of-ROI area with 0.

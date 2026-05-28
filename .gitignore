@@ -265,6 +265,7 @@ log_files/
 outputs/
 checkpoints/
 report/
+presentation/
 
 # Archives
 archives/

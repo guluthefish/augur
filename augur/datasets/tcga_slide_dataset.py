@@ -21,7 +21,12 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
+from augur.datasets.cancer_subtyping import load_subtyping_labels
 from augur.datasets.dataset_abc import DatasetABC
+from augur.datasets.mutational_signature import (
+    SUPPORTED_PRETEXT_TASKS,
+    load_signature_labels,
+)
 from augur.datasets.utils import (
     SlideRecord,
     enumerate_slide_tile_centers,
@@ -36,117 +41,6 @@ from augur.datasets.utils import (
 from augur.utils.logger import setup_logger
 
 SUPPORTED_MAIN_TASKS: tuple[str, ...] = ("subtyping",)
-SUPPORTED_PRETEXT_TASKS: tuple[str, ...] = (
-    "sbs_regression",
-    "sbs_thresholded_multilabel",
-    "sbs_ranked_multilabel",
-)
-UNKNOWN_SUBTYPE_CLASS = "Unknown"
-
-
-def _normalize_subtype_label(value: Any) -> str:
-    """Normalize a TCGA histologic-subtype value into a class label."""
-    label = str(value).strip()
-    if label.lower() == "nan" or label in {"", "[Not Available]", "[Not Applicable]"}:
-        return UNKNOWN_SUBTYPE_CLASS
-
-    parts = [part.strip() for part in label.split("|") if part.strip()]
-    unique_parts = list(dict.fromkeys(parts))
-    if len(unique_parts) == 1:
-        label = unique_parts[0]
-
-    if label == UNKNOWN_SUBTYPE_CLASS:
-        return UNKNOWN_SUBTYPE_CLASS
-    return label
-
-
-def _load_subtyping_labels(
-    labels_path: str,
-    logger: logging.Logger | None = None,
-) -> tuple[dict[str, int], tuple[str, ...]]:
-    """Load slide-level subtyping labels with ``Unknown`` fixed at index 0."""
-    labels_df = pd.read_table(labels_path, dtype=str)
-    required_columns = {"submitter_id", "subtype"}
-    missing_columns = required_columns.difference(labels_df.columns)
-    if missing_columns:
-        raise ValueError(
-            f"Subtyping label table is missing column(s): {sorted(missing_columns)}"
-        )
-
-    submitter_ids = labels_df["submitter_id"].astype(str).str.strip()
-    raw_values = labels_df["subtype"]
-
-    class_to_index: dict[str, int] = {UNKNOWN_SUBTYPE_CLASS: 0}
-    submitter_labels: dict[str, int] = {}
-    raw_submitter_labels: dict[str, str] = {}
-
-    for submitter_id, raw_label in zip(submitter_ids, raw_values):
-        if not submitter_id.startswith("TCGA-"):
-            continue
-
-        label = _normalize_subtype_label(raw_label)
-        if label != UNKNOWN_SUBTYPE_CLASS and label not in class_to_index:
-            class_to_index[label] = len(class_to_index)
-
-        class_index = class_to_index[label]
-        previous_label = raw_submitter_labels.get(submitter_id)
-        if previous_label is not None and previous_label != label:
-            if logger is not None:
-                logger.warning(
-                    "Conflicting subtyping labels for submitter %s: %s vs %s. "
-                    "Using unknown class index 0.",
-                    submitter_id,
-                    previous_label,
-                    label,
-                )
-            submitter_labels[submitter_id] = 0
-            raw_submitter_labels[submitter_id] = UNKNOWN_SUBTYPE_CLASS
-            continue
-
-        submitter_labels[submitter_id] = class_index
-        raw_submitter_labels[submitter_id] = label
-
-    if not submitter_labels:
-        raise RuntimeError(f"No TCGA subtyping labels were found in: {labels_path}")
-
-    return submitter_labels, tuple(class_to_index)
-
-
-def _load_sbs_labels(
-    labels_path: str,
-    logger: logging.Logger | None = None,
-) -> tuple[dict[str, np.ndarray], tuple[str, ...]]:
-    """Load an SBS exposure table into ``(submitter_id -> vector, mutation_names)``.
-
-    The first column is treated as the submitter id (renamed to
-    ``submitter_id`` if necessary); the remaining columns are stored as a
-    per-submitter ``float32`` vector.
-    """
-    labels_df = pd.read_table(labels_path)
-    if "submitter_id" not in labels_df.columns:
-        labels_df = labels_df.rename(columns={labels_df.columns[0]: "submitter_id"})
-    labels_df["submitter_id"] = labels_df["submitter_id"].astype(str).str.strip()
-
-    mutation_columns = [
-        column for column in labels_df.columns if column != "submitter_id"
-    ]
-    if not mutation_columns:
-        raise ValueError(f"SBS labels file has no label columns: {labels_path}")
-
-    label_matrix = labels_df[mutation_columns].to_numpy(dtype=np.float32)
-    submitter_ids = labels_df["submitter_id"].tolist()
-    submitter_labels = {
-        submitter_id: label_matrix[idx]
-        for idx, submitter_id in enumerate(submitter_ids)
-    }
-    if logger is not None:
-        logger.info(
-            "Loaded SBS labels from %s: %d submitter(s), %d mutation column(s).",
-            labels_path,
-            len(submitter_labels),
-            len(mutation_columns),
-        )
-    return submitter_labels, tuple(mutation_columns)
 
 
 def _setup_logger_for_module() -> logging.Logger:
@@ -477,8 +371,8 @@ class TCGASlideDataset(DatasetABC):
     fixed at class index 0 (treat as the unknown class for ignore-index losses).
 
     Pretext tasks are slide-level SBS exposure vectors keyed by the entries
-    of ``slide_pretext_atlas.txt`` — currently ``sbs_regression``,
-    ``sbs_thresholded_multilabel``, and ``sbs_ranked_multilabel``. Each
+    of ``slide_subtask_atlas.txt`` — currently ``sbs_regression``,
+    ``dbs_regression``, ``id_regression``, and ``cnv_regression``. Each
     configured pretext task adds a nested ``batch[pretext_task]["target"]``
     entry holding a float vector of length ``num_pretext_labels[pretext_task]``.
 
@@ -501,7 +395,7 @@ class TCGASlideDataset(DatasetABC):
         Optional explicit paths. When omitted, the manifest is resolved from
         ``atlases/manifest_atlas.txt``, the main label table from
         ``atlases/slide_main_atlas.txt``, and each pretext task's table from
-        ``atlases/slide_pretext_atlas.txt``.
+        ``atlases/slide_subtask_atlas.txt``.
     portion_per_sample
         Fraction of valid tissue candidates to keep per slide. Each
         ``__getitem__`` randomly samples
@@ -920,7 +814,7 @@ class TCGASlideDataset(DatasetABC):
 
         match self.main_task:
             case "subtyping":
-                submitter_labels, label_names = _load_subtyping_labels(
+                submitter_labels, label_names = load_subtyping_labels(
                     self._resolved_main_labels_path,
                     logger=self.logger,
                 )
@@ -956,7 +850,7 @@ class TCGASlideDataset(DatasetABC):
                 self._resolved_pretext_labels_paths[pretext_task] = resolved_path
 
             if pretext_task in SUPPORTED_PRETEXT_TASKS:
-                submitter_labels, mutation_names = _load_sbs_labels(
+                submitter_labels, mutation_names = load_signature_labels(
                     resolved_path, logger=self.logger
                 )
             else:

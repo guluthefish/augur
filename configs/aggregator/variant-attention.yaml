@@ -1,0 +1,7 @@
+params:
+  aggregation_method: attention
+  attn_kwargs:
+    hidden_dim: 256
+    num_heads: 1
+    dropout: 0.25
+    gated: false

@@ -3,12 +3,7 @@ root_dir: data/TCGA-BRCA-test
 
 # --- Parameters for downloading TCGA data from GDC ---
 # Original manifest files names (in folder <root_dir>/manifests/raw)
-manifests_raw: [gdc_manifest.test.txt]
-
-# Manually specify manifest file for downloading TCGA data, if wanted
-# Either enter a list of manifest file(s) manually (in folder <root_dir>/manifests/ready_for_download),
-# or False (use the output of the pipeline)
-manifests_for_download: False
+manifest_raw: gdc_manifest.test.txt
 
 # Maximum number of files for each gdc client command
 n_files_per_command: 200
@@ -35,3 +30,11 @@ top_k_signatures: 5
 # --- Parameters for downloading BCSS dataset ---
 bcss_mpp: 0.25
 bcss_pipelines: [images, masks, annotations]
+bcss_slides:
+  [
+    TCGA-A1-A0SK-DX1,
+    TCGA-AR-A2LR-DX1,
+    TCGA-GM-A2DI-DX1,
+    TCGA-E9-A5FL-DX1,
+    TCGA-GM-A2DI-DX1,
+  ]

@@ -1,0 +1,2 @@
+# Marker partial: aggregator paired with an encoder pretrained on the jigmag
+# pretext task. See `pretext-full.yaml` for the rationale.

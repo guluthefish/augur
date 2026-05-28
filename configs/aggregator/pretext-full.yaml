@@ -1,0 +1,5 @@
+# Marker partial: the aggregator dict does not vary by encoder pretext task.
+# Selecting this file means the aggregator is paired with features extracted
+# by an encoder pretrained on the full multi-task pretext suite. The pretext
+# token is consumed by the aggregator config-merge function to compose
+# `checkpoint_path`.

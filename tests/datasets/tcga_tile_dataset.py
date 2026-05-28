@@ -7,7 +7,7 @@ import torch
 
 from augur.datasets.tcga_tile_dataset import TCGATileDataset, _TileDataset
 from augur.datasets.utils import (
-    derive_bcss_slide_name,
+    derive_tissue_slide_name,
     load_slide_records,
     resolve_manifest_path,
     sample_tile_record_in_roi_bounds,
@@ -32,14 +32,14 @@ def _test_TileDataset():
     test_slide_name = "TCGA-A1-A0SK-DX1"
     test_slide_record = None
     for s in slide_records:
-        if derive_bcss_slide_name(s.slide_path) == test_slide_name:
+        if derive_tissue_slide_name(s.slide_path) == test_slide_name:
             test_slide_record = s
             break
     assert test_slide_record is not None, (
         f"No slide record found for slide_name {test_slide_name}"
     )
 
-    roi_name = derive_bcss_slide_name(test_slide_record.slide_id)
+    roi_name = derive_tissue_slide_name(test_slide_record.slide_id)
     xmin, ymin, xmax, ymax = 45749, 25055, 49789, 27991
     test_tile_record = sample_tile_record_in_roi_bounds(
         slide_record=test_slide_record,
@@ -69,7 +69,7 @@ def _test_TileDataset():
         )
     )
 
-    bcss_roi_groups = {
+    tissue_roi_groups = {
         test_slide_name: pd.DataFrame(
             [
                 {
@@ -83,6 +83,10 @@ def _test_TileDataset():
         )
     }
 
+    slide_name_by_filename = {
+        os.path.basename(test_slide_record.slide_path): test_slide_name
+    }
+
     tile_dataset = _TileDataset(
         root_dir=root_dir,
         records=tile_records,
@@ -94,7 +98,8 @@ def _test_TileDataset():
         jigmag_mpps=[0.25, 0.5, 1.0, 2.0],
         random_seed=42,
         tissue_segmentation_n_classes=22,
-        bcss_roi_groups=bcss_roi_groups,
+        tissue_roi_groups=tissue_roi_groups,
+        slide_name_by_filename=slide_name_by_filename,
     )
 
     assert len(tile_dataset) == len(tile_records), (

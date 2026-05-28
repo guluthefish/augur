@@ -40,12 +40,14 @@ import torch
 from torch import Tensor
 from torch.utils.data import Dataset
 
+from augur.datasets.cancer_subtyping import load_subtyping_labels
 from augur.datasets.dataset_abc import DatasetABC
+from augur.datasets.mutational_signature import (
+    SUPPORTED_PRETEXT_TASKS,
+    load_signature_labels,
+)
 from augur.datasets.tcga_slide_dataset import (
     SUPPORTED_MAIN_TASKS,
-    SUPPORTED_PRETEXT_TASKS,
-    _load_sbs_labels,
-    _load_subtyping_labels,
     pad_bag_collate,
 )
 from augur.datasets.utils import (
@@ -586,7 +588,7 @@ class TCGAFeatureDataset(DatasetABC):
             )
         match self.main_task:
             case "subtyping":
-                submitter_labels, label_names = _load_subtyping_labels(
+                submitter_labels, label_names = load_subtyping_labels(
                     self._resolved_main_labels_path, logger=self.logger
                 )
             case _:
@@ -618,7 +620,7 @@ class TCGAFeatureDataset(DatasetABC):
                 self._resolved_pretext_labels_paths[pretext_task] = resolved_path
             if pretext_task not in SUPPORTED_PRETEXT_TASKS:
                 raise ValueError(f"Unsupported pretext task: {pretext_task}")
-            submitter_labels, mutation_names = _load_sbs_labels(
+            submitter_labels, mutation_names = load_signature_labels(
                 resolved_path, logger=self.logger
             )
             self._pretext_submitter_labels[pretext_task] = submitter_labels

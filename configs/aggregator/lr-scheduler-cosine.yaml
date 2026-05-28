@@ -1,0 +1,6 @@
+params:
+  lr_scheduler:
+    name: cosineannealinglr
+    params:
+      T_max: 10
+      eta_min: 1e-6

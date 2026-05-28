@@ -622,12 +622,12 @@ def main():
             f"Manifest file referenced by atlas not found: {manifest_path}"
         )
 
-    manifest_downloaded = os.path.basename(manifest_path)
+    final_manifest = os.path.basename(manifest_path)
     logger = setup_logger(os.path.join(root_dir, "logs"), name="extract_signature")
     logger.info("Loaded config %s; manifest: %s", args.config, manifest_path)
 
-    run_sigprofile(root_dir, manifest_downloaded, logger=logger)
-    extract_signature_labels(root_dir, manifest_downloaded, logger=logger)
+    run_sigprofile(root_dir, final_manifest, logger=logger)
+    extract_signature_labels(root_dir, final_manifest, logger=logger)
 
 
 if __name__ == "__main__":
