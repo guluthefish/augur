@@ -76,6 +76,20 @@ def compute_regression_loss(
     return F.mse_loss(prediction.float(), aligned_target.float())
 
 
+def compute_distribution_kl_loss(
+    prediction: Tensor,
+    target: Tensor,
+) -> Tensor:
+    """KL(target || softmax(prediction)) for predictions over a simplex.
+
+    Treats ``prediction`` as raw logits over the last dimension and applies
+    ``log_softmax`` for numerical stability. ``target`` must be a probability
+    distribution that sums to 1 along the last dimension.
+    """
+    log_prediction = F.log_softmax(prediction.float(), dim=-1)
+    return F.kl_div(log_prediction, target.float(), reduction="batchmean")
+
+
 def compute_classification_loss(
     prediction: Tensor,
     target: Tensor,
