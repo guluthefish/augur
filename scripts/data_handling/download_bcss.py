@@ -564,7 +564,7 @@ def download_metadata(root_dir: str, logger: logging.Logger) -> None:
     for filename, url_name in zip(filenames, url_names):
         proc = subprocess.Popen(
             [
-                "wget",
+                "curl",
                 "-O",
                 os.path.join(metadata_dir, filename),
                 f"https://raw.githubusercontent.com/PathologyDataScience/BCSS/refs/heads/master/meta/{url_name}",
@@ -578,7 +578,7 @@ def download_metadata(root_dir: str, logger: logging.Logger) -> None:
         proc.wait()
         assert proc.stdout is not None
         for line in proc.stdout:
-            logger.info("[wget] %s", line.rstrip("\n"))
+            logger.info("[curl] %s", line.rstrip("\n"))
 
     # Persist a precomputed slide_name column in slide_metadata so downstream
     # consumers don't need to re-derive the TCGA barcode from filenames at
