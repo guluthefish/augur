@@ -9,6 +9,8 @@ dependencies:
   - pip
   - setuptools>=61
   - wheel
+  - pytorch=2.5.1
+  - torchvision=0.20.1
   - gdc-client=2.3
   - jupyter=1.1.1
   - numpy
