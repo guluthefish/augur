@@ -20,18 +20,21 @@ from augur.datasets.dataset_abc import DatasetABC
 from augur.datasets.hematoxylin import process_hematoxylin_task
 from augur.datasets.jigmag import process_jigmag_task
 from augur.datasets.magnification import process_magnification_task
+from augur.datasets.tissue_segmentation import (
+    build_tissue_roi_groups,
+    compute_labeled_submitter_ids,
+    load_tissue_metadata,
+    process_tissue_segmentation_task,
+)
 from augur.datasets.utils import (
     TileRecord,
     SlideRecord,
     as_image_tensor,
     as_mask_tensor,
-    derive_bcss_slide_name,
     load_slide_records,
-    load_tissue_mask_label_for_free_tile,
     tile_record_center_l0,
     read_tile_from_record,
     resolve_manifest_path,
-    resolve_tissue_label_metadata_path,
     sample_tile_records,
     split_slide_records,
     split_slide_records_with_budget,
@@ -117,7 +120,8 @@ class _TileDataset(Dataset[dict[str, Any]]):
         magnification_mpps: Sequence[float] | None = None,
         jigmag_mpps: Sequence[float] | None = None,
         tissue_segmentation_n_classes: int | None = None,
-        bcss_roi_groups: dict[str, pd.DataFrame] | None = None,
+        tissue_roi_groups: dict[str, pd.DataFrame] | None = None,
+        slide_name_by_filename: dict[str, str] | None = None,
         slide_cache_size: int = 16,
         random_seed: int = 42,
         root_dir: str | None = None,
@@ -146,7 +150,8 @@ class _TileDataset(Dataset[dict[str, Any]]):
             else None
         )
         self.tissue_segmentation_n_classes = tissue_segmentation_n_classes
-        self.bcss_roi_groups = bcss_roi_groups
+        self.tissue_roi_groups = tissue_roi_groups
+        self.slide_name_by_filename = slide_name_by_filename or {}
         self.slide_cache_size = slide_cache_size
         self.random_seed = random_seed
         self.task_transforms = task_transforms or {}
@@ -249,12 +254,6 @@ class _TileDataset(Dataset[dict[str, Any]]):
     ) -> dict[str, Any]:
         """Build a base-scale task such as tissue segmentation or classification."""
 
-        resized_image = cv2.resize(  # pylint: disable=no-member
-            base_image,
-            (self.image_size, self.image_size),
-            interpolation=cv2.INTER_AREA,  # pylint: disable=no-member
-        )
-
         match task_name:
             case "tissue_segmentation":
                 if self.root_dir is None:
@@ -271,43 +270,18 @@ class _TileDataset(Dataset[dict[str, Any]]):
                     raise ValueError(
                         "tissue_segmentation_n_classes must be set for tissue segmentation task."
                     )
-
-                slide_name = derive_bcss_slide_name(
-                    tile_record.slide_path, tile_record.submitter_id
-                )
-                slide_rois = (
-                    self.bcss_roi_groups.get(slide_name)
-                    if self.bcss_roi_groups is not None
-                    else None
-                )
-                target_mask = load_tissue_mask_label_for_free_tile(
-                    root_dir=self.root_dir,
+                return process_tissue_segmentation_task(
+                    base_image=base_image,
                     tile_record=tile_record,
                     slide=slide,
+                    image_size=self.image_size,
                     base_mpp=self.base_mpp,
-                    output_size=self.image_size,
-                    slide_name=slide_name,
-                    slide_rois=slide_rois,
+                    n_classes=self.tissue_segmentation_n_classes,
+                    root_dir=self.root_dir,
+                    tissue_roi_groups=self.tissue_roi_groups,
+                    slide_name_by_filename=self.slide_name_by_filename,
                     logger=self.logger,
                 )
-
-                target_one_hot = np.zeros(
-                    (
-                        self.tissue_segmentation_n_classes,
-                        self.image_size,
-                        self.image_size,
-                    ),
-                    dtype=np.uint8,
-                )
-                for class_idx in range(self.tissue_segmentation_n_classes):
-                    target_one_hot[class_idx] = (target_mask == class_idx).astype(
-                        np.uint8
-                    )
-
-                return {
-                    "image": resized_image.astype(np.float32) / 255.0,
-                    "target": target_one_hot,
-                }
             case "tumor_classification":
                 self.logger.error(
                     "tumor_classification is not implemented in TCGATileDataset."
@@ -635,10 +609,10 @@ class TCGATileDataset(DatasetABC):
         self.sample_transform = sample_transform
         self._resolved_manifest_path: str | None = None
         self._slide_splits: dict[str, list[SlideRecord]] | None = None
-        self._bcss_gt_codes: dict[str, str] | None = None
-        self._bcss_slide_metadata: pd.DataFrame | None = None
-        self._bcss_roi_metadata: pd.DataFrame | None = None
-        self._bcss_roi_groups: dict[str, pd.DataFrame] | None = None
+        self._tissue_gt_codes: dict[str, str] | None = None
+        self._tissue_slide_metadata: pd.DataFrame | None = None
+        self._tissue_roi_metadata: pd.DataFrame | None = None
+        self._tissue_roi_groups: dict[str, pd.DataFrame] | None = None
         self._labeled_submitter_ids: set[str] | None = None
         self._labeled_slide_paths: set[str] | None = None
 
@@ -870,7 +844,7 @@ class TCGATileDataset(DatasetABC):
         )
         self._load_candidate_slide_records()
         if "tissue_segmentation" in self.tasks:
-            self._load_bcss_metadata()
+            self._load_tissue_metadata()
         self.logger.info("Finished prepare_data for tasks: %s", list(self.tasks))
 
     def setup(self: TCGATileDataset, stage: str | None = None) -> None:
@@ -992,17 +966,23 @@ class TCGATileDataset(DatasetABC):
         )
 
         tissue_segmentation_n_classes: int | None = None
-        bcss_roi_groups: dict[str, pd.DataFrame] | None = None
+        tissue_roi_groups: dict[str, pd.DataFrame] | None = None
+        slide_name_by_filename: dict[str, str] | None = None
         if "tissue_segmentation" in self.tasks:
-            if not self._bcss_gt_codes:
+            if not self._tissue_gt_codes:
                 self.logger.error(
-                    "BCSS metadata could not be loaded, tissue segmentation requires it."
+                    "Tissue metadata could not be loaded, tissue segmentation requires it."
                 )
                 raise RuntimeError(
-                    "BCSS metadata could not be loaded, tissue segmentation requires it."
+                    "Tissue metadata could not be loaded, tissue segmentation requires it."
                 )
-            tissue_segmentation_n_classes = len(self._bcss_gt_codes)
-            bcss_roi_groups = self._get_bcss_roi_groups()
+            tissue_segmentation_n_classes = len(self._tissue_gt_codes)
+            tissue_roi_groups = self._get_tissue_roi_groups()
+            slide_df = self._tissue_slide_metadata
+            assert slide_df is not None  # populated by _get_tissue_roi_groups
+            slide_name_by_filename = dict(
+                zip(slide_df["filename"], slide_df["slide_name"])
+            )
 
         return _TileDataset(
             records=records,
@@ -1018,23 +998,21 @@ class TCGATileDataset(DatasetABC):
             sample_transform=self.sample_transform,
             logger=self.logger,
             tissue_segmentation_n_classes=tissue_segmentation_n_classes,
-            bcss_roi_groups=bcss_roi_groups,
+            tissue_roi_groups=tissue_roi_groups,
+            slide_name_by_filename=slide_name_by_filename,
             slide_cache_size=self.slide_cache_size,
         )
 
-    def _get_bcss_roi_groups(self) -> dict[str, pd.DataFrame]:
-        """Group BCSS ROI rows by slide_name for per-tile mask compositing."""
-        if self._bcss_roi_groups is not None:
-            return self._bcss_roi_groups
-        _, _, roi_df = self._load_bcss_metadata()
-        self._bcss_roi_groups = {
-            str(slide_name): group.reset_index(drop=True)
-            for slide_name, group in roi_df.groupby("slide_name", sort=False)
-        }
-        return self._bcss_roi_groups
+    def _get_tissue_roi_groups(self) -> dict[str, pd.DataFrame]:
+        """Group tissue ROI rows by slide_name, caching the result."""
+        if self._tissue_roi_groups is not None:
+            return self._tissue_roi_groups
+        _, _, roi_df = self._load_tissue_metadata()
+        self._tissue_roi_groups = build_tissue_roi_groups(roi_df)
+        return self._tissue_roi_groups
 
     def _load_candidate_slide_records(self) -> list[SlideRecord]:
-        """Load slide records and, if needed, restrict them to BCSS-labelled slides."""
+        """Load slide records and, if needed, restrict them to tissue-labelled slides."""
         if self._resolved_manifest_path is None:
             self._resolved_manifest_path = resolve_manifest_path(
                 self.root_dir, self.manifest_path, self.logger
@@ -1062,124 +1040,40 @@ class TCGATileDataset(DatasetABC):
             self._labeled_slide_paths = labeled_slide_paths
             if not labeled_submitter_ids:
                 self.logger.error(
-                    "No BCSS-labelled slides from bcss_slide_magnifications.csv were found in the manifest/ordered_data."
+                    "No tissue-labelled slides from the tissue label metadata were found in the manifest/ordered_data."
                 )
                 raise RuntimeError(
-                    "No BCSS-labelled slides from bcss_slide_magnifications.csv were found in the manifest/ordered_data."
+                    "No tissue-labelled slides from the tissue label metadata were found in the manifest/ordered_data."
                 )
 
         return all_slide_records
 
-    def _load_bcss_metadata(self) -> tuple[dict[str, str], pd.DataFrame, pd.DataFrame]:
-        """Load BCSS slide metadata and ROI bounds from ``root_dir/metadata``."""
+    def _load_tissue_metadata(self) -> tuple[dict[str, str], pd.DataFrame, pd.DataFrame]:
+        """Load and cache tissue slide metadata, ROI bounds, and GT codes."""
         if (
-            self._bcss_gt_codes is not None
-            and self._bcss_slide_metadata is not None
-            and self._bcss_roi_metadata is not None
+            self._tissue_gt_codes is not None
+            and self._tissue_slide_metadata is not None
+            and self._tissue_roi_metadata is not None
         ):
             return (
-                self._bcss_gt_codes,
-                self._bcss_slide_metadata,
-                self._bcss_roi_metadata,
+                self._tissue_gt_codes,
+                self._tissue_slide_metadata,
+                self._tissue_roi_metadata,
             )
 
-        gt_codes_path, roi_bounds_path, slide_metadata_path = (
-            resolve_tissue_label_metadata_path(
-                root_dir=self.root_dir, logger=self.logger
-            )
+        gt_codes, slide_df, roi_df = load_tissue_metadata(
+            root_dir=self.root_dir, logger=self.logger
         )
-
-        if not os.path.exists(slide_metadata_path):
-            raise FileNotFoundError(
-                f"BCSS slide metadata file not found: {slide_metadata_path}"
-            )
-        if not os.path.exists(roi_bounds_path):
-            raise FileNotFoundError(
-                f"BCSS ROI bounds file not found: {roi_bounds_path}"
-            )
-        if not os.path.exists(gt_codes_path):
-            raise FileNotFoundError(
-                f"BCSS ground truth codes file not found: {gt_codes_path}"
-            )
-
-        gt_codes_df = pd.read_csv(gt_codes_path, sep="\t", dtype=str)
-        gt_codes_df = gt_codes_df.rename(
-            columns={"label": "label", "GT_code": "gt_code"}
-        )
-        self._bcss_gt_codes = dict(zip(gt_codes_df["label"], gt_codes_df["gt_code"]))
-
-        slide_df = pd.read_csv(slide_metadata_path, dtype=str)
-        slide_df = slide_df.rename(
-            columns={
-                slide_df.columns[0]: "submitter_id",
-                "name": "filename",
-                "_id": "bcss_item_id",
-            }
-        )
-        required_slide_columns = {"submitter_id", "filename", "magnification"}
-        missing_slide_columns = required_slide_columns.difference(slide_df.columns)
-        if missing_slide_columns:
-            raise ValueError(
-                "BCSS slide metadata is missing required columns: "
-                f"{sorted(missing_slide_columns)}"
-            )
-
-        slide_df["submitter_id"] = slide_df["submitter_id"].astype(str).str.strip()
-        slide_df["filename"] = slide_df["filename"].astype(str).str.strip()
-        slide_df["slide_name"] = slide_df.apply(
-            lambda row: derive_bcss_slide_name(row["filename"], row["submitter_id"]),
-            axis=1,
-        )
-
-        roi_df = pd.read_csv(roi_bounds_path, dtype=str)
-        roi_df = roi_df.rename(columns={roi_df.columns[0]: "slide_name"})
-        required_roi_columns = {"slide_name", "xmin", "ymin", "xmax", "ymax"}
-        missing_roi_columns = required_roi_columns.difference(roi_df.columns)
-        if missing_roi_columns:
-            raise ValueError(
-                f"BCSS ROI bounds file is missing required columns: {sorted(missing_roi_columns)}"
-            )
-
-        roi_df["slide_name"] = roi_df["slide_name"].astype(str).str.strip()
-        for column in ("xmin", "ymin", "xmax", "ymax"):
-            roi_df[column] = pd.to_numeric(roi_df[column], errors="coerce")
-        if roi_df[["xmin", "ymin", "xmax", "ymax"]].isna().any().any():
-            raise ValueError("BCSS ROI bounds file contains invalid coordinates.")
-
-        self.logger.info(
-            "Loaded BCSS metadata: %d slide rows, %d ROI rows, %d GT codes.",
-            len(slide_df),
-            len(roi_df),
-            len(self._bcss_gt_codes),
-        )
-        self._bcss_slide_metadata = slide_df
-        self._bcss_roi_metadata = roi_df
-        return self._bcss_gt_codes, self._bcss_slide_metadata, self._bcss_roi_metadata
+        self._tissue_gt_codes = gt_codes
+        self._tissue_slide_metadata = slide_df
+        self._tissue_roi_metadata = roi_df
+        return self._tissue_gt_codes, self._tissue_slide_metadata, self._tissue_roi_metadata
 
     def _compute_labeled_submitter_ids(
         self: TCGATileDataset, slide_records: Sequence[SlideRecord]
     ) -> tuple[set[str], set[str]]:
-        """Return labelled submitter IDs and slide paths matched in BCSS metadata."""
-        _, slide_df, _ = self._load_bcss_metadata()
-        expected_submitter_by_filename = dict(
-            zip(slide_df["filename"], slide_df["submitter_id"])
+        """Return labelled submitter IDs and slide paths matched in tissue metadata."""
+        _, slide_df, _ = self._load_tissue_metadata()
+        return compute_labeled_submitter_ids(
+            slide_records=slide_records, slide_df=slide_df, logger=self.logger
         )
-
-        labeled_submitter_ids: set[str] = set()
-        labeled_slide_paths: set[str] = set()
-        for slide_record in slide_records:
-            filename = os.path.basename(slide_record.slide_path)
-            expected_submitter_id = expected_submitter_by_filename.get(filename)
-            if expected_submitter_id == slide_record.submitter_id:
-                labeled_submitter_ids.add(slide_record.submitter_id)
-                labeled_slide_paths.add(slide_record.slide_path)
-
-        self.logger.info(
-            "Matched %d BCSS-labelled slide(s) from %d manifest slide(s) "
-            "(%d unique labelled submitter(s)).",
-            len(labeled_slide_paths),
-            len(slide_records),
-            len(labeled_submitter_ids),
-        )
-        return labeled_submitter_ids, labeled_slide_paths
-
