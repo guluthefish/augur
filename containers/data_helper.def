@@ -12,6 +12,8 @@ From: mambaorg/micromamba:2.5.0
     export MAMBA_ROOT_PREFIX=/opt/conda
     apt update
     apt install -y rsync
+    apt install -y --no-install-recommends curl ca-certificates libcurl4t64
+    rm -rf /var/lib/apt/lists/*
     micromamba create -y -n data_helper -f /opt/IMGEN/envs/data_helper.yaml
     micromamba run -n data_helper python -m pip install --no-build-isolation --no-deps /opt/IMGEN
     micromamba clean --all --yes
