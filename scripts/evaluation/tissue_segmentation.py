@@ -38,7 +38,7 @@ from augur.datasets.tcga_tile_dataset import (  # noqa: F401  (private inner Dat
 from augur.datasets.utils import (
     SlideRecord,
     TileRecord,
-    derive_bcss_slide_name,
+    derive_tissue_slide_name,
     get_slide_mpp,
     resolve_tissue_label_metadata_path,
 )
@@ -248,7 +248,7 @@ def _build_test_records_with_portion(
 
     splits = datamodule._get_slide_splits()
     test_slides = splits["test"]
-    _, _, roi_df = datamodule._load_bcss_metadata()
+    _, _, roi_df = datamodule._load_tissue_metadata()
     roi_groups: dict[str, pd.DataFrame] = {
         str(slide_name): group.reset_index(drop=True)
         for slide_name, group in roi_df.groupby("slide_name", sort=False)
@@ -258,7 +258,7 @@ def _build_test_records_with_portion(
     all_records: list[TileRecord] = []
     total = len(test_slides)
     for index, slide_record in enumerate(test_slides, start=1):
-        slide_name = derive_bcss_slide_name(
+        slide_name = derive_tissue_slide_name(
             slide_record.slide_path, slide_record.submitter_id
         )
         slide_rois = roi_groups.get(slide_name)
@@ -527,7 +527,7 @@ def evaluate(
         image_size=datamodule.image_size,
         base_mpp=datamodule.base_mpp,
         root_dir=datamodule.root_dir,
-        tissue_segmentation_n_classes=len(datamodule._bcss_gt_codes or {}),
+        tissue_segmentation_n_classes=len(datamodule._tissue_gt_codes or {}),
         random_seed=datamodule.random_seed,
         logger=logger,
     )
