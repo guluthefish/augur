@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import logging
 import os
-import time
+import subprocess
 from argparse import ArgumentParser
 from typing import Any, Optional
 
@@ -14,6 +14,7 @@ import requests
 import yaml
 from PIL import Image
 
+from augur.datasets.utils import derive_tissue_slide_name
 from augur.utils.logger import setup_logger
 
 DEFAULT_API_URL = "https://demo.kitware.com/histomicstk/api/v1"
@@ -96,7 +97,7 @@ def load_bcss_metadata(root_dir: str) -> pd.DataFrame:
     ----------
     root_dir:
         Dataset root directory containing ``metadata/bcss_roi_bounds.csv`` and
-        ``metadata/bcss_slide_magnifications.csv``.
+        ``metadata/bcss_slide_metadata.csv``.
 
     Returns
     -------
@@ -105,7 +106,7 @@ def load_bcss_metadata(root_dir: str) -> pd.DataFrame:
     """
     metadata_dir = os.path.join(root_dir, "metadata")
     roi_bounds_path = os.path.join(metadata_dir, "bcss_roi_bounds.csv")
-    slide_metadata_path = os.path.join(metadata_dir, "bcss_slide_magnifications.csv")
+    slide_metadata_path = os.path.join(metadata_dir, "bcss_slide_metadata.csv")
 
     if not os.path.exists(roi_bounds_path):
         raise FileNotFoundError(f"Missing BCSS ROI bounds file: {roi_bounds_path}")
@@ -137,9 +138,9 @@ def load_bcss_metadata(root_dir: str) -> pd.DataFrame:
 
     slide_df = pd.read_csv(slide_metadata_path, index_col=0, dtype=str)
     slide_df.index = slide_df.index.astype(str).str.strip()
-    slide_df = slide_df.rename(columns={"name": "slide_name", "_id": "item_id"})
+    slide_df = slide_df.rename(columns={"name": "filename", "_id": "item_id"})
 
-    required_slide_columns = {"slide_name", "item_id", "magnification"}
+    required_slide_columns = {"filename", "slide_name", "item_id", "magnification"}
     missing_slide_columns = required_slide_columns.difference(slide_df.columns)
     if missing_slide_columns:
         raise ValueError(
@@ -151,7 +152,7 @@ def load_bcss_metadata(root_dir: str) -> pd.DataFrame:
     )
 
     merged_df = roi_df.merge(
-        slide_df[["slide_name", "item_id", "magnification"]],
+        slide_df[["filename", "slide_name", "item_id", "magnification"]],
         left_on="slide_id",
         right_index=True,
         how="left",
@@ -262,7 +263,7 @@ def require_cv2():
         The imported cv2 module.
     """
     try:
-        import cv2  # pylint: disable=import-outside-toplevel
+        import cv2
     except ImportError as exc:
         raise ImportError(
             "cv2 is only required for BCSS mask resizing. "
@@ -495,13 +496,13 @@ def download_annotations(
     dict[str, int]
         Download summary with ``downloaded`` and ``skipped`` counts.
     """
-    slide_df = roi_df[["slide_id", "slide_name", "item_id"]].drop_duplicates()
+    slide_df = roi_df[["slide_id", "filename", "item_id"]].drop_duplicates()
     downloaded = 0
     skipped = 0
     total = len(slide_df)
 
     for idx, row in enumerate(slide_df.itertuples(index=False), start=1):
-        annotation_name = f"{os.path.splitext(str(row.slide_name))[0]}.json"
+        annotation_name = f"{os.path.splitext(str(row.filename))[0]}.json"
         output_path = os.path.join(output_dir, annotation_name)
 
         if os.path.exists(output_path):
@@ -528,10 +529,81 @@ def download_annotations(
     return {"downloaded": downloaded, "skipped": skipped}
 
 
+def download_metadata(root_dir: str, logger: logging.Logger) -> None:
+    """Download BCSS metadata files and save paths to an atlas file."""
+    # Create atlas file at <root_dir>/atlases/tissue_label_atlas.txt
+    atlas_dir = os.path.join(root_dir, "atlases")
+    os.makedirs(atlas_dir, exist_ok=True)
+    bcss_dir = os.path.join(root_dir, "labels", "tissues")
+    os.makedirs(bcss_dir, exist_ok=True)
+    metadata_dir = os.path.join(root_dir, "metadata")
+    os.makedirs(metadata_dir, exist_ok=True)
+    atlas_path = os.path.join(atlas_dir, "tissue_label_atlas.txt")
+    atlas_df = pd.DataFrame(
+        {
+            "type": ["groundtruth_codes", "roi_bounds", "slide_metadata"],
+            "path": [
+                os.path.join(bcss_dir, "bcss_groundtruth_codes.tsv"),
+                os.path.join(bcss_dir, "bcss_roi_bounds.csv"),
+                os.path.join(bcss_dir, "bcss_slide_metadata.csv"),
+            ],
+        }
+    )
+    atlas_df.to_csv(atlas_path, sep="\t", index=False)
+
+    filenames = [
+        "bcss_groundtruth_codes.tsv",
+        "bcss_roi_bounds.csv",
+        "bcss_slide_metadata.csv",
+    ]
+    url_names = [
+        "gtruth_codes.tsv",
+        "roiBounds.csv",
+        "slide_magnifications.csv",
+    ]
+    for filename, url_name in zip(filenames, url_names):
+        proc = subprocess.Popen(
+            [
+                "curl",
+                "-o",
+                os.path.join(metadata_dir, filename),
+                "-l",
+                f"https://raw.githubusercontent.com/PathologyDataScience/BCSS/refs/heads/master/meta/{url_name}",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        proc.wait()
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            logger.info("[curl] %s", line.rstrip("\n"))
+
+    # Persist a precomputed slide_name column in slide_metadata so downstream
+    # consumers don't need to re-derive the TCGA barcode from filenames at
+    # runtime. The derivation is BCSS/TCGA-specific and lives only here.
+    slide_metadata_path = os.path.join(metadata_dir, "bcss_slide_metadata.csv")
+    slide_df = pd.read_csv(slide_metadata_path, dtype=str)
+    slide_df = slide_df.rename(columns={slide_df.columns[0]: "submitter_id"})
+    slide_df["slide_name"] = slide_df.apply(
+        lambda row: derive_tissue_slide_name(row["name"], row["submitter_id"]),
+        axis=1,
+    )
+    slide_df.to_csv(slide_metadata_path, index=False)
+    logger.info(
+        "Added slide_name column to %s (%d rows).",
+        slide_metadata_path,
+        len(slide_df),
+    )
+
+
 def download_bcss(
     root_dir: str,
     mpp: Optional[float],
     pipelines: list[str] | tuple[str, ...],
+    slides: Optional[list[str]] = None,
     api_url: str = DEFAULT_API_URL,
     request_timeout: int = 4 * 60 * 60,
     logger: Optional[logging.Logger] = None,
@@ -548,6 +620,10 @@ def download_bcss(
     pipelines:
         Requested BCSS download stages. Supported values are ``images``,
         ``masks``, and ``annotations``.
+    slides:
+        Optional list of slide names (TCGA barcodes like ``TCGA-A1-A0SK-DX1``)
+        to restrict the download to. When ``None``, every slide referenced by
+        the BCSS metadata is downloaded.
     api_url:
         HistomicsTK API base URL.
     request_timeout:
@@ -560,10 +636,7 @@ def download_bcss(
     dict[str, dict[str, int]]
         Per-pipeline summary with ``downloaded`` and ``skipped`` counts.
     """
-    if not os.path.isdir(root_dir):
-        raise NotADirectoryError(
-            f"root_dir does not exist or is not a directory: {root_dir}"
-        )
+    os.makedirs(root_dir, exist_ok=True)
 
     normalized_pipelines = normalize_pipelines(pipelines)
 
@@ -576,15 +649,27 @@ def download_bcss(
     os.makedirs(log_dir, exist_ok=True)
     logger = logger or setup_logger(log_dir, name="download_bcss")
 
-    t0 = time.perf_counter()
-    logger.info(
-        "--- STARTING download_bcss WITH pipelines=%s AND mpp=%s ---",
-        normalized_pipelines,
-        mpp,
-    )
-
+    download_metadata(root_dir, logger)
     roi_df = load_bcss_metadata(root_dir)
     output_dirs = prepare_output_dirs(root_dir, normalized_pipelines)
+
+    if slides is not None:
+        requested = {str(s).strip() for s in slides if str(s).strip()}
+        if not requested:
+            raise ValueError(
+                "slides must contain at least one slide name when provided."
+            )
+        roi_df = roi_df[roi_df["slide_name"].isin(requested)].reset_index(drop=True)
+        unmatched = sorted(requested.difference(roi_df["slide_name"].unique()))
+        if unmatched:
+            logger.warning(
+                "Some requested BCSS slides have no ROIs in the metadata and will be skipped: %s",
+                unmatched,
+            )
+        if roi_df.empty:
+            raise ValueError(
+                "No BCSS ROIs match the requested slides; nothing to download."
+            )
 
     logger.info(
         "Loaded BCSS metadata for %d ROIs across %d slides.",
@@ -632,9 +717,6 @@ def download_bcss(
         session.close()
 
     logger.info("BCSS download summary: %s", summary)
-    logger.info(
-        "--- END OF download_bcss. TIME ELAPSED: %.2fs ---", time.perf_counter() - t0
-    )
     return summary
 
 
@@ -660,17 +742,24 @@ def read_bcss_config(config_path: str) -> dict[str, Any]:
 
     if "root_dir" not in config:
         raise KeyError("Config file is missing required key: root_dir")
-    if "pipelines" not in config:
-        raise KeyError("Config file is missing required key: pipelines")
+    if "bcss_pipelines" not in config:
+        raise KeyError("Config file is missing required key: bcss_pipelines")
 
     root_dir = os.path.expanduser(str(config["root_dir"]))
-    mpp = config.get("mpp")
-    pipelines = config["pipelines"]
+    mpp = config.get("bcss_mpp")
+    pipelines = config["bcss_pipelines"]
+
+    slides = config.get("bcss_slides")
+    if slides is not None and not (
+        isinstance(slides, (list, tuple)) and all(isinstance(s, str) for s in slides)
+    ):
+        raise ValueError("bcss_slides must be a list of strings or omitted.")
 
     return {
         "root_dir": root_dir,
         "mpp": None if mpp is False else mpp,
         "pipelines": pipelines,
+        "slides": list(slides) if slides is not None else None,
     }
 
 
@@ -696,6 +785,7 @@ def main():
         root_dir=config["root_dir"],
         mpp=config["mpp"],
         pipelines=config["pipelines"],
+        slides=config["slides"],
         api_url=args.api_url,
     )
 
