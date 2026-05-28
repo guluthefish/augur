@@ -1,0 +1,2 @@
+# Marker partial: aggregator paired with an encoder that received no pretext
+# pretraining (raw backbone). See `pretext-full.yaml` for the rationale.

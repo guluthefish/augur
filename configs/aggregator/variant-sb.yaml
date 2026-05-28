@@ -1,0 +1,6 @@
+params:
+  attn_kwargs:
+    multi_branch: false
+    gated: false
+    hidden_dim: 256
+    dropout: 0.25

@@ -1,0 +1,17 @@
+name: DualCLAM
+params:
+  main_task: subtyping
+  pretext_tasks: null
+  hidden_dims: [256, 128]
+  output_dims:
+    subtyping: 8
+  dropout: 0.2
+  cluster_kwargs:
+    k_sample: 8
+    inst_weight: 0.25
+    out_of_class: true
+  task_weights:
+    subtyping: 2.0
+  task_kwargs:
+    subtyping:
+      unknown_class_index: 0

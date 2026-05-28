@@ -3,12 +3,7 @@ root_dir: data/TCGA-BRCA
 
 # --- Parameters for downloading TCGA data from GDC ---
 # Original manifest files names (in folder <root_dir>/manifests/raw)
-manifests_raw: [gdc_manifest.2026-01-12.144408.txt]
-
-# Manually specify manifest file for downloading TCGA data, if wanted
-# Either enter a list of manifest file(s) manually (in folder <root_dir>/manifests/ready_for_download),
-# or False (use the output of the pipeline)
-manifests_for_download: False
+manifest_raw: gdc_manifest.2026-01-12.144408.txt
 
 # Maximum number of files for each gdc client command
 n_files_per_command: 200
