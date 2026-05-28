@@ -3,7 +3,7 @@ params:
   root_dir: data/TCGA-BRCA
   features_dir: data/TCGA-BRCA/features/archive-resnet50-none
   main_task: subtyping
-  pretext_tasks:
+  subtasks:
     - sbs_regression
   portion_per_sample: 0.25
   train_fraction: 0.7

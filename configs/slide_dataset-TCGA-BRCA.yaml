@@ -2,7 +2,7 @@ name: TCGASlideDataset
 params:
   root_dir: data/TCGA-BRCA
   main_task: subtyping
-  pretext_tasks:
+  subtasks:
     - sbs_regression
   portion_per_sample: 0.25
   stride: 512

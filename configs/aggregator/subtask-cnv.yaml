@@ -1,0 +1,9 @@
+# CNV (copy-number variation) COSMIC CN48 signature regression subtask.
+# output_dims.cnv_regression is the number of signature columns in the
+# contributions TSV — verify against your actual labels file before training.
+params:
+  subtasks: ["cnv_regression"]
+  output_dims:
+    cnv_regression: 48
+  task_weights:
+    cnv_regression: 1.0

@@ -2,7 +2,7 @@ name: EmbeddingMIL
 params:
   main_task: subtyping
   hidden_dims: [256, 128]
-  output_dim: 8
+  output_dim: 6
   dropout: 0.2
   task_weights:
     subtyping: 2.0
