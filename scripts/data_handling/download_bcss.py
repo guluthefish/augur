@@ -543,9 +543,9 @@ def download_metadata(root_dir: str, logger: logging.Logger) -> None:
         {
             "type": ["groundtruth_codes", "roi_bounds", "slide_metadata"],
             "path": [
-                os.path.join(atlas_dir, "bcss_groundtruth_codes.tsv"),
-                os.path.join(atlas_dir, "bcss_roi_bounds.csv"),
-                os.path.join(atlas_dir, "bcss_slide_metadata.csv"),
+                os.path.join(metadata_dir, "bcss_groundtruth_codes.tsv"),
+                os.path.join(metadata_dir, "bcss_roi_bounds.csv"),
+                os.path.join(metadata_dir, "bcss_slide_metadata.csv"),
             ],
         }
     )
@@ -565,8 +565,9 @@ def download_metadata(root_dir: str, logger: logging.Logger) -> None:
         proc = subprocess.Popen(
             [
                 "curl",
-                "-O",
+                "-o",
                 os.path.join(metadata_dir, filename),
+                "-L",
                 f"https://raw.githubusercontent.com/PathologyDataScience/BCSS/refs/heads/master/meta/{url_name}",
             ],
             stdout=subprocess.PIPE,

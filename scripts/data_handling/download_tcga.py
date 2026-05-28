@@ -513,11 +513,6 @@ def download_data(
     os.makedirs(log_dir, exist_ok=True)
     logger = logger or _setup_module_logger(root_dir)
 
-    logger.info(
-        "--- STARTING download_data WITH %d MANIFESTS READY FOR DOWNLOAD ---",
-        len(splitted_manifests),
-    )
-
     gdc_client = shutil.which("gdc-client")
     if not gdc_client:
         logger.error(
