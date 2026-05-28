@@ -1,6 +1,6 @@
 """TCGA Lightning datamodule that treats each slide as one dataset entry.
 
-Main task is slide-level subtyping (classification). Pretext tasks are SBS
+Main task is slide-level subtyping (classification). Subtask tasks are SBS
 mutational-signature exposure vectors (regression / multilabel variants).
 """
 
@@ -24,7 +24,7 @@ from torch.utils.data import Dataset
 from augur.datasets.cancer_subtyping import load_subtyping_labels
 from augur.datasets.dataset_abc import DatasetABC
 from augur.datasets.mutational_signature import (
-    SUPPORTED_PRETEXT_TASKS,
+    SUPPORTED_SUBTASKS,
     load_signature_labels,
 )
 from augur.datasets.utils import (
@@ -34,7 +34,7 @@ from augur.datasets.utils import (
     read_tile_from_record,
     resolve_manifest_path,
     resolve_slide_main_label_path,
-    resolve_slide_pretext_label_path,
+    resolve_slide_subtask_label_path,
     split_slide_records,
     _make_tile_record_for_mpp,
 )
@@ -142,8 +142,8 @@ class _SlideDataset(Dataset[dict[str, Any]]):
     function when batching.
 
     Each sample emits the main subtyping target at ``sample["target"]`` (a
-    scalar ``long`` class index) and one nested entry per pretext SBS task at
-    ``sample[pretext_task]["target"]`` (a float vector of mutation exposures).
+    scalar ``long`` class index) and one nested entry per subtask at
+    ``sample[subtask]["target"]`` (a float vector of mutation exposures).
     """
 
     _GETITEM_MAX_RETRIES = 3
@@ -155,9 +155,9 @@ class _SlideDataset(Dataset[dict[str, Any]]):
         centers_by_slide_id: dict[str, list[tuple[int, int]]],
         main_submitter_labels: dict[str, int],
         main_label_names: Sequence[str],
-        pretext_tasks: list[str] | None = None,
-        pretext_submitter_labels: dict[str, dict[str, np.ndarray]] | None = None,
-        pretext_label_names: dict[str, tuple[str, ...]] | None = None,
+        subtasks: list[str] | None = None,
+        subtask_submitter_labels: dict[str, dict[str, np.ndarray]] | None = None,
+        subtask_label_names: dict[str, tuple[str, ...]] | None = None,
         portion_per_sample: float,
         tile_size: int,
         image_size: int,
@@ -169,12 +169,12 @@ class _SlideDataset(Dataset[dict[str, Any]]):
         self.centers_by_slide_id = centers_by_slide_id
         self.main_submitter_labels = main_submitter_labels
         self.main_label_names = tuple(main_label_names)
-        self.pretext_tasks: list[str] = list(pretext_tasks or [])
-        self.pretext_submitter_labels: dict[str, dict[str, np.ndarray]] = (
-            pretext_submitter_labels or {}
+        self.subtasks: list[str] = list(subtasks or [])
+        self.subtask_submitter_labels: dict[str, dict[str, np.ndarray]] = (
+            subtask_submitter_labels or {}
         )
-        self.pretext_label_names: dict[str, tuple[str, ...]] = dict(
-            pretext_label_names or {}
+        self.subtask_label_names: dict[str, tuple[str, ...]] = dict(
+            subtask_label_names or {}
         )
         self.portion_per_sample = float(portion_per_sample)
         self.tile_size = int(tile_size)
@@ -343,18 +343,18 @@ class _SlideDataset(Dataset[dict[str, Any]]):
             "metadata": metadata,
         }
 
-        if self.pretext_tasks:
-            metadata["pretext_tasks"] = list(self.pretext_tasks)
-            for pretext_task in self.pretext_tasks:
-                task_submitter_labels = self.pretext_submitter_labels.get(pretext_task)
+        if self.subtasks:
+            metadata["subtasks"] = list(self.subtasks)
+            for subtask in self.subtasks:
+                task_submitter_labels = self.subtask_submitter_labels.get(subtask)
                 if task_submitter_labels is None:
                     raise RuntimeError(
-                        f"Pretext task '{pretext_task}' is missing label mappings."
+                        f"Subtask task '{subtask}' is missing label mappings."
                     )
-                pretext_vector = task_submitter_labels[slide_record.submitter_id]
-                sample[pretext_task] = {
+                subtask_vector = task_submitter_labels[slide_record.submitter_id]
+                sample[subtask] = {
                     "target": torch.from_numpy(
-                        np.ascontiguousarray(pretext_vector)
+                        np.ascontiguousarray(subtask_vector)
                     ).float()
                 }
 
@@ -370,11 +370,11 @@ class TCGASlideDataset(DatasetABC):
     emitted as a scalar ``long`` at ``batch["target"]``. ``Unknown`` is
     fixed at class index 0 (treat as the unknown class for ignore-index losses).
 
-    Pretext tasks are slide-level SBS exposure vectors keyed by the entries
+    Subtask tasks are slide-level SBS exposure vectors keyed by the entries
     of ``slide_subtask_atlas.txt`` — currently ``sbs_regression``,
     ``dbs_regression``, ``id_regression``, and ``cnv_regression``. Each
-    configured pretext task adds a nested ``batch[pretext_task]["target"]``
-    entry holding a float vector of length ``num_pretext_labels[pretext_task]``.
+    configured subtask adds a nested ``batch[subtask]["target"]``
+    entry holding a float vector of length ``num_subtask_labels[subtask]``.
 
     Per-slide bag size ``K`` varies (it depends on the per-slide tissue area
     and the configured ``stride`` / ``portion_per_sample``); the default
@@ -388,13 +388,13 @@ class TCGASlideDataset(DatasetABC):
         parent if their paths are relative.
     main_task
         Slide-level main task. Currently only ``"subtyping"`` is supported.
-    pretext_tasks
-        Optional list of slide-level pretext tasks. Each entry must be one of
-        :attr:`SUPPORTED_PRETEXT_TASKS`.
-    manifest_path, main_labels_path, pretext_labels_paths, ordered_data_dir
+    subtasks
+        Optional list of slide-level subtasks. Each entry must be one of
+        :attr:`SUPPORTED_SUBTASKS`.
+    manifest_path, main_labels_path, subtask_labels_paths, ordered_data_dir
         Optional explicit paths. When omitted, the manifest is resolved from
         ``atlases/manifest_atlas.txt``, the main label table from
-        ``atlases/slide_main_atlas.txt``, and each pretext task's table from
+        ``atlases/slide_main_atlas.txt``, and each subtask's table from
         ``atlases/slide_subtask_atlas.txt``.
     portion_per_sample
         Fraction of valid tissue candidates to keep per slide. Each
@@ -426,17 +426,17 @@ class TCGASlideDataset(DatasetABC):
     """
 
     SUPPORTED_MAIN_TASKS = SUPPORTED_MAIN_TASKS
-    SUPPORTED_PRETEXT_TASKS = SUPPORTED_PRETEXT_TASKS
+    SUPPORTED_SUBTASKS = SUPPORTED_SUBTASKS
 
     def __init__(
         self: TCGASlideDataset,
         root_dir: str,
         *,
         main_task: str = "subtyping",
-        pretext_tasks: list[str] | None = None,
+        subtasks: list[str] | None = None,
         manifest_path: str | None = None,
         main_labels_path: str | None = None,
-        pretext_labels_paths: dict[str, str] | None = None,
+        subtask_labels_paths: dict[str, str] | None = None,
         ordered_data_dir: str | None = None,
         portion_per_sample: float = 1.0,
         stride: int | None = None,
@@ -486,29 +486,29 @@ class TCGASlideDataset(DatasetABC):
                 f"Unsupported main_task: {main_task}. "
                 f"Must be one of {self.SUPPORTED_MAIN_TASKS}."
             )
-        if pretext_tasks is not None:
-            if not isinstance(pretext_tasks, list) or any(
-                not isinstance(task, str) or not task for task in pretext_tasks
+        if subtasks is not None:
+            if not isinstance(subtasks, list) or any(
+                not isinstance(task, str) or not task for task in subtasks
             ):
                 raise ValueError(
-                    "pretext_tasks must be a list of non-empty strings or None."
+                    "subtasks must be a list of non-empty strings or None."
                 )
-            if len(set(pretext_tasks)) != len(pretext_tasks):
-                raise ValueError("pretext_tasks must not contain duplicates.")
-            for task in pretext_tasks:
-                if task not in self.SUPPORTED_PRETEXT_TASKS:
-                    self.logger.error("Unsupported pretext task: %s", task)
+            if len(set(subtasks)) != len(subtasks):
+                raise ValueError("subtasks must not contain duplicates.")
+            for task in subtasks:
+                if task not in self.SUPPORTED_SUBTASKS:
+                    self.logger.error("Unsupported subtask: %s", task)
                     raise ValueError(
-                        f"Unsupported pretext task: {task}. "
-                        f"Must be one of {self.SUPPORTED_PRETEXT_TASKS}."
+                        f"Unsupported subtask: {task}. "
+                        f"Must be one of {self.SUPPORTED_SUBTASKS}."
                     )
-        if pretext_labels_paths is not None:
-            if not isinstance(pretext_labels_paths, dict) or any(
+        if subtask_labels_paths is not None:
+            if not isinstance(subtask_labels_paths, dict) or any(
                 not isinstance(task, str) or not isinstance(path, str)
-                for task, path in pretext_labels_paths.items()
+                for task, path in subtask_labels_paths.items()
             ):
                 raise ValueError(
-                    "pretext_labels_paths must be a dict of task name to path string."
+                    "subtask_labels_paths must be a dict of task name to path string."
                 )
         if (
             not isinstance(portion_per_sample, (int, float))
@@ -542,10 +542,10 @@ class TCGASlideDataset(DatasetABC):
 
         self.root_dir = root_dir
         self.main_task = main_task
-        self.pretext_tasks: list[str] = list(pretext_tasks or [])
+        self.subtasks: list[str] = list(subtasks or [])
         self.manifest_path = manifest_path
         self.main_labels_path = main_labels_path
-        self.pretext_labels_paths: dict[str, str] = dict(pretext_labels_paths or {})
+        self.subtask_labels_paths: dict[str, str] = dict(subtask_labels_paths or {})
         self.ordered_data_dir = (
             ordered_data_dir
             if ordered_data_dir is not None
@@ -567,11 +567,11 @@ class TCGASlideDataset(DatasetABC):
 
         self._resolved_manifest_path: str | None = None
         self._resolved_main_labels_path: str | None = None
-        self._resolved_pretext_labels_paths: dict[str, str] = {}
+        self._resolved_subtask_labels_paths: dict[str, str] = {}
         self._main_submitter_labels: dict[str, int] | None = None
         self._main_label_names: tuple[str, ...] | None = None
-        self._pretext_submitter_labels: dict[str, dict[str, np.ndarray]] = {}
-        self._pretext_label_names: dict[str, tuple[str, ...]] = {}
+        self._subtask_submitter_labels: dict[str, dict[str, np.ndarray]] = {}
+        self._subtask_label_names: dict[str, tuple[str, ...]] = {}
         self._slide_splits: dict[str, list[SlideRecord]] | None = None
         self._centers_by_slide_id: dict[str, list[tuple[int, int]]] | None = None
 
@@ -591,29 +591,29 @@ class TCGASlideDataset(DatasetABC):
                 f"main_task must be one of {TCGASlideDataset.SUPPORTED_MAIN_TASKS}."
             )
 
-        pretext_tasks = config.get("pretext_tasks", None)
-        if pretext_tasks is not None:
-            if not isinstance(pretext_tasks, list) or any(
-                not isinstance(task, str) or not task for task in pretext_tasks
+        subtasks = config.get("subtasks", None)
+        if subtasks is not None:
+            if not isinstance(subtasks, list) or any(
+                not isinstance(task, str) or not task for task in subtasks
             ):
                 raise ValueError(
-                    "pretext_tasks must be a list of non-empty strings or None."
+                    "subtasks must be a list of non-empty strings or None."
                 )
-            for task in pretext_tasks:
-                if task not in TCGASlideDataset.SUPPORTED_PRETEXT_TASKS:
+            for task in subtasks:
+                if task not in TCGASlideDataset.SUPPORTED_SUBTASKS:
                     raise ValueError(
-                        f"Unsupported pretext task: {task}. Must be one of "
-                        f"{TCGASlideDataset.SUPPORTED_PRETEXT_TASKS}."
+                        f"Unsupported subtask: {task}. Must be one of "
+                        f"{TCGASlideDataset.SUPPORTED_SUBTASKS}."
                     )
 
-        pretext_labels_paths = config.get("pretext_labels_paths", None)
-        if pretext_labels_paths is not None:
-            if not isinstance(pretext_labels_paths, dict) or any(
+        subtask_labels_paths = config.get("subtask_labels_paths", None)
+        if subtask_labels_paths is not None:
+            if not isinstance(subtask_labels_paths, dict) or any(
                 not isinstance(task, str) or not isinstance(path, str)
-                for task, path in pretext_labels_paths.items()
+                for task, path in subtask_labels_paths.items()
             ):
                 raise ValueError(
-                    "pretext_labels_paths must be a dict of task name to path string."
+                    "subtask_labels_paths must be a dict of task name to path string."
                 )
 
         def _optional_str(key: str) -> str | None:
@@ -686,10 +686,10 @@ class TCGASlideDataset(DatasetABC):
         return TCGASlideDataset(
             root_dir=root_dir,
             main_task=main_task,
-            pretext_tasks=pretext_tasks,
+            subtasks=subtasks,
             manifest_path=_optional_str("manifest_path"),
             main_labels_path=_optional_str("main_labels_path"),
-            pretext_labels_paths=pretext_labels_paths,
+            subtask_labels_paths=subtask_labels_paths,
             ordered_data_dir=_optional_str("ordered_data_dir"),
             portion_per_sample=float(portion_per_sample_value),
             stride=stride_value,
@@ -725,12 +725,12 @@ class TCGASlideDataset(DatasetABC):
         self._resolved_main_labels_path = resolve_slide_main_label_path(
             self.root_dir, self.main_task, self.main_labels_path, self.logger
         )
-        for pretext_task in self.pretext_tasks:
-            self._resolved_pretext_labels_paths[pretext_task] = (
-                resolve_slide_pretext_label_path(
+        for subtask in self.subtasks:
+            self._resolved_subtask_labels_paths[subtask] = (
+                resolve_slide_subtask_label_path(
                     self.root_dir,
-                    pretext_task,
-                    self.pretext_labels_paths.get(pretext_task),
+                    subtask,
+                    self.subtask_labels_paths.get(subtask),
                     self.logger,
                 )
             )
@@ -747,7 +747,7 @@ class TCGASlideDataset(DatasetABC):
         )
 
         self._ensure_main_labels_loaded()
-        self._ensure_pretext_labels_loaded()
+        self._ensure_subtask_labels_loaded()
         slide_splits = self._get_slide_splits()
 
         needed_splits: list[str] = []
@@ -830,39 +830,39 @@ class TCGASlideDataset(DatasetABC):
             self.main_task,
         )
 
-    def _ensure_pretext_labels_loaded(self: TCGASlideDataset) -> None:
-        """Load optional slide-level pretext SBS labels once per task."""
-        for pretext_task in self.pretext_tasks:
+    def _ensure_subtask_labels_loaded(self: TCGASlideDataset) -> None:
+        """Load optional slide-level subtask labels once per task."""
+        for subtask in self.subtasks:
             if (
-                pretext_task in self._pretext_submitter_labels
-                and pretext_task in self._pretext_label_names
+                subtask in self._subtask_submitter_labels
+                and subtask in self._subtask_label_names
             ):
                 continue
 
-            resolved_path = self._resolved_pretext_labels_paths.get(pretext_task)
+            resolved_path = self._resolved_subtask_labels_paths.get(subtask)
             if resolved_path is None:
-                resolved_path = resolve_slide_pretext_label_path(
+                resolved_path = resolve_slide_subtask_label_path(
                     self.root_dir,
-                    pretext_task,
-                    self.pretext_labels_paths.get(pretext_task),
+                    subtask,
+                    self.subtask_labels_paths.get(subtask),
                     self.logger,
                 )
-                self._resolved_pretext_labels_paths[pretext_task] = resolved_path
+                self._resolved_subtask_labels_paths[subtask] = resolved_path
 
-            if pretext_task in SUPPORTED_PRETEXT_TASKS:
+            if subtask in SUPPORTED_SUBTASKS:
                 submitter_labels, mutation_names = load_signature_labels(
                     resolved_path, logger=self.logger
                 )
             else:
-                raise ValueError(f"Unsupported pretext task: {pretext_task}")
+                raise ValueError(f"Unsupported subtask: {subtask}")
 
-            self._pretext_submitter_labels[pretext_task] = submitter_labels
-            self._pretext_label_names[pretext_task] = mutation_names
+            self._subtask_submitter_labels[subtask] = submitter_labels
+            self._subtask_label_names[subtask] = mutation_names
             self.logger.info(
-                "Loaded slide pretext labels: %d submitter(s), %d label(s) for task '%s'.",
+                "Loaded slide subtask labels: %d submitter(s), %d label(s) for task '%s'.",
                 len(submitter_labels),
                 len(mutation_names),
-                pretext_task,
+                subtask,
             )
 
     def _get_slide_splits(self: TCGASlideDataset) -> dict[str, list[SlideRecord]]:
@@ -875,9 +875,9 @@ class TCGASlideDataset(DatasetABC):
                 self.root_dir, self.manifest_path, self.logger
             )
         self._ensure_main_labels_loaded()
-        self._ensure_pretext_labels_loaded()
+        self._ensure_subtask_labels_loaded()
         assert self._main_submitter_labels is not None
-        pretext_labels_by_task = self._pretext_submitter_labels
+        subtask_labels_by_task = self._subtask_submitter_labels
 
         slide_records = load_slide_records(
             manifest_path=self._resolved_manifest_path,
@@ -891,7 +891,7 @@ class TCGASlideDataset(DatasetABC):
         )
 
         # Backfill submitters that are missing from the main-task label table
-        # as Unknown (class index 0). Slides without a pretext label are still
+        # as Unknown (class index 0). Slides without a subtask label are still
         # dropped because SBS regression targets cannot be imputed.
         missing_main_submitters = {
             record.submitter_id
@@ -920,14 +920,14 @@ class TCGASlideDataset(DatasetABC):
             for record in slide_records
             if record.submitter_id in self._main_submitter_labels
             and all(
-                record.submitter_id in pretext_labels_by_task[pretext_task]
-                for pretext_task in self.pretext_tasks
+                record.submitter_id in subtask_labels_by_task[subtask]
+                for subtask in self.subtasks
             )
         ]
         dropped = len(slide_records) - len(labelled_records)
         if dropped:
             self.logger.warning(
-                "Dropped %d slide(s) without matching pretext label(s) for "
+                "Dropped %d slide(s) without matching subtask label(s) for "
                 "main task '%s'.",
                 dropped,
                 self.main_task,
@@ -1004,9 +1004,9 @@ class TCGASlideDataset(DatasetABC):
             centers_by_slide_id=self._centers_by_slide_id,
             main_submitter_labels=self._main_submitter_labels,
             main_label_names=self._main_label_names,
-            pretext_tasks=self.pretext_tasks,
-            pretext_submitter_labels=self._pretext_submitter_labels,
-            pretext_label_names=self._pretext_label_names,
+            subtasks=self.subtasks,
+            subtask_submitter_labels=self._subtask_submitter_labels,
+            subtask_label_names=self._subtask_label_names,
             portion_per_sample=self.portion_per_sample,
             tile_size=self.tile_size,
             image_size=self.image_size,
@@ -1029,15 +1029,15 @@ class TCGASlideDataset(DatasetABC):
         return len(self.main_label_names)
 
     @property
-    def pretext_label_names(self: TCGASlideDataset) -> dict[str, tuple[str, ...]]:
-        """Mutation/column names per configured slide-level pretext task."""
-        if not self.pretext_tasks:
+    def subtask_label_names(self: TCGASlideDataset) -> dict[str, tuple[str, ...]]:
+        """Mutation/column names per configured slide-level subtask."""
+        if not self.subtasks:
             return {}
-        if any(task not in self._pretext_label_names for task in self.pretext_tasks):
-            self._ensure_pretext_labels_loaded()
-        return {task: self._pretext_label_names[task] for task in self.pretext_tasks}
+        if any(task not in self._subtask_label_names for task in self.subtasks):
+            self._ensure_subtask_labels_loaded()
+        return {task: self._subtask_label_names[task] for task in self.subtasks}
 
     @property
-    def num_pretext_labels(self: TCGASlideDataset) -> dict[str, int]:
-        """Vector length per configured slide-level pretext task."""
-        return {task: len(names) for task, names in self.pretext_label_names.items()}
+    def num_subtask_labels(self: TCGASlideDataset) -> dict[str, int]:
+        """Vector length per configured slide-level subtask."""
+        return {task: len(names) for task, names in self.subtask_label_names.items()}

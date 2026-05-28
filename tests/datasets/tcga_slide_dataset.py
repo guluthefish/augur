@@ -143,9 +143,9 @@ def _test_TCGASlideDataset() -> None:
         f"Expected TCGASlideDataset. Got: {type(datamodule)}"
     )
     assert datamodule.main_task == "subtyping"
-    assert datamodule.pretext_tasks, (
-        "Test config should configure at least one SBS pretext task. "
-        f"Got: {datamodule.pretext_tasks}."
+    assert datamodule.subtasks, (
+        "Test config should configure at least one SBS subtask. "
+        f"Got: {datamodule.subtasks}."
     )
 
     datamodule.prepare_data()
@@ -161,15 +161,15 @@ def _test_TCGASlideDataset() -> None:
         "Expected the test submitter TCGA-A1-A0SK in the main label table."
     )
 
-    # Each pretext SBS task exposes a vector-valued label table.
-    for pretext_task in datamodule.pretext_tasks:
-        names = datamodule.pretext_label_names[pretext_task]
+    # Each subtask exposes a vector-valued label table.
+    for subtask in datamodule.subtasks:
+        names = datamodule.subtask_label_names[subtask]
         assert len(names) >= 1, (
-            f"Pretext task '{pretext_task}' should expose at least one label column."
+            f"Subtask task '{subtask}' should expose at least one label column."
         )
-        assert datamodule.num_pretext_labels[pretext_task] == len(names)
-        assert "TCGA-A1-A0SK" in datamodule._pretext_submitter_labels[pretext_task], (
-            f"Pretext '{pretext_task}' should cover submitter TCGA-A1-A0SK."
+        assert datamodule.num_subtask_labels[subtask] == len(names)
+        assert "TCGA-A1-A0SK" in datamodule._subtask_submitter_labels[subtask], (
+            f"Subtask '{subtask}' should cover submitter TCGA-A1-A0SK."
         )
 
     expected_batch_keys = {
@@ -177,7 +177,7 @@ def _test_TCGASlideDataset() -> None:
         "mask",
         "target",
         "metadata",
-        *datamodule.pretext_tasks,
+        *datamodule.subtasks,
     }
 
     for dataloader, batch_size in (
@@ -218,24 +218,24 @@ def _test_TCGASlideDataset() -> None:
             "Subtyping class indices must lie in [0, num_main_labels)."
         )
 
-        for pretext_task in datamodule.pretext_tasks:
-            pretext_target = batch[pretext_task]["target"]
-            assert isinstance(pretext_target, torch.Tensor), (
-                f"Pretext '{pretext_task}' target must be a tensor."
+        for subtask in datamodule.subtasks:
+            subtask_target = batch[subtask]["target"]
+            assert isinstance(subtask_target, torch.Tensor), (
+                f"Subtask '{subtask}' target must be a tensor."
             )
-            assert pretext_target.shape == (
+            assert subtask_target.shape == (
                 B,
-                datamodule.num_pretext_labels[pretext_task],
+                datamodule.num_subtask_labels[subtask],
             ), (
-                f"Pretext '{pretext_task}' target should have shape "
-                f"({B}, {datamodule.num_pretext_labels[pretext_task]}). "
-                f"Got: {pretext_target.shape}."
+                f"Subtask '{subtask}' target should have shape "
+                f"({B}, {datamodule.num_subtask_labels[subtask]}). "
+                f"Got: {subtask_target.shape}."
             )
-            assert pretext_target.dtype == torch.float32, (
-                f"Pretext '{pretext_task}' target should be float32."
+            assert subtask_target.dtype == torch.float32, (
+                f"Subtask '{subtask}' target should be float32."
             )
-            assert torch.isfinite(pretext_target).all(), (
-                f"Pretext '{pretext_task}' target contains non-finite values."
+            assert torch.isfinite(subtask_target).all(), (
+                f"Subtask '{subtask}' target contains non-finite values."
             )
 
     datamodule.teardown()

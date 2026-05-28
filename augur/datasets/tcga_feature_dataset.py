@@ -6,7 +6,7 @@ re-encoding tiles every epoch, ``__getitem__`` loads a per-slide
 ``<slide_id>.pt`` produced by
 ``scripts/model_training/precompute_tile_features.py`` and returns a
 ``(K, D)`` feature bag with the same downstream contract as ``_SlideDataset``
-— including ``target`` and per-pretext-task target entries.
+— including ``target`` and per-subtask target entries.
 
 The same :func:`pad_bag_collate` from the slide dataset works unchanged: it
 pads along the first axis regardless of trailing shape. After collation,
@@ -43,7 +43,7 @@ from torch.utils.data import Dataset
 from augur.datasets.cancer_subtyping import load_subtyping_labels
 from augur.datasets.dataset_abc import DatasetABC
 from augur.datasets.mutational_signature import (
-    SUPPORTED_PRETEXT_TASKS,
+    SUPPORTED_SUBTASKS,
     load_signature_labels,
 )
 from augur.datasets.tcga_slide_dataset import (
@@ -55,7 +55,7 @@ from augur.datasets.utils import (
     load_slide_records,
     resolve_manifest_path,
     resolve_slide_main_label_path,
-    resolve_slide_pretext_label_path,
+    resolve_slide_subtask_label_path,
     split_slide_records,
 )
 from augur.utils.logger import setup_logger
@@ -82,7 +82,7 @@ class _FeatureBagDataset(Dataset[dict[str, Any]]):
             "image":     Tensor[K, D] float32,   # sampled tile features
             "target":    Tensor[scalar long],    # main-task class index
             "metadata":  dict[str, Any],
-            "<pretext_task>": {"target": Tensor[D'] float},  # one per task
+            "<subtask>": {"target": Tensor[D'] float},  # one per task
         }
 
     where ``K = min(max_tiles_per_bag, max(1, floor(K_total * portion_per_sample)))``.
@@ -97,9 +97,9 @@ class _FeatureBagDataset(Dataset[dict[str, Any]]):
         feature_paths_by_slide_id: dict[str, str],
         main_submitter_labels: dict[str, int],
         main_label_names: Sequence[str],
-        pretext_tasks: list[str] | None = None,
-        pretext_submitter_labels: dict[str, dict[str, np.ndarray]] | None = None,
-        pretext_label_names: dict[str, tuple[str, ...]] | None = None,
+        subtasks: list[str] | None = None,
+        subtask_submitter_labels: dict[str, dict[str, np.ndarray]] | None = None,
+        subtask_label_names: dict[str, tuple[str, ...]] | None = None,
         portion_per_sample: float = 1.0,
         max_tiles_per_bag: int | None = None,
         task: str = "subtyping",
@@ -121,12 +121,12 @@ class _FeatureBagDataset(Dataset[dict[str, Any]]):
         self.feature_paths_by_slide_id = dict(feature_paths_by_slide_id)
         self.main_submitter_labels = main_submitter_labels
         self.main_label_names = tuple(main_label_names)
-        self.pretext_tasks: list[str] = list(pretext_tasks or [])
-        self.pretext_submitter_labels: dict[str, dict[str, np.ndarray]] = (
-            pretext_submitter_labels or {}
+        self.subtasks: list[str] = list(subtasks or [])
+        self.subtask_submitter_labels: dict[str, dict[str, np.ndarray]] = (
+            subtask_submitter_labels or {}
         )
-        self.pretext_label_names: dict[str, tuple[str, ...]] = dict(
-            pretext_label_names or {}
+        self.subtask_label_names: dict[str, tuple[str, ...]] = dict(
+            subtask_label_names or {}
         )
         self.portion_per_sample = float(portion_per_sample)
         self.max_tiles_per_bag = max_tiles_per_bag
@@ -259,16 +259,16 @@ class _FeatureBagDataset(Dataset[dict[str, Any]]):
             "metadata": metadata,
         }
 
-        for pretext_task in self.pretext_tasks:
-            task_submitter_labels = self.pretext_submitter_labels.get(pretext_task)
+        for subtask in self.subtasks:
+            task_submitter_labels = self.subtask_submitter_labels.get(subtask)
             if task_submitter_labels is None:
                 raise RuntimeError(
-                    f"Pretext task '{pretext_task}' is missing label mappings."
+                    f"Subtask task '{subtask}' is missing label mappings."
                 )
-            pretext_vector = task_submitter_labels[slide_record.submitter_id]
-            sample[pretext_task] = {
+            subtask_vector = task_submitter_labels[slide_record.submitter_id]
+            sample[subtask] = {
                 "target": torch.from_numpy(
-                    np.ascontiguousarray(pretext_vector)
+                    np.ascontiguousarray(subtask_vector)
                 ).float()
             }
 
@@ -304,10 +304,10 @@ class TCGAFeatureDataset(DatasetABC):
         resolve the manifest and label tables.
     features_dir
         Directory containing per-slide ``<slide_id>.pt`` feature caches.
-    main_task, pretext_tasks
+    main_task, subtasks
         Slide-level main task (currently ``"subtyping"``) and optional list of
-        pretext SBS tasks.
-    manifest_path, main_labels_path, pretext_labels_paths, ordered_data_dir
+        subtasks.
+    manifest_path, main_labels_path, subtask_labels_paths, ordered_data_dir
         Optional explicit overrides; otherwise resolved from ``root_dir``.
     portion_per_sample
         Fraction of cached tiles to sample per slide, in ``(0, 1]``.
@@ -330,7 +330,7 @@ class TCGAFeatureDataset(DatasetABC):
     """
 
     SUPPORTED_MAIN_TASKS = SUPPORTED_MAIN_TASKS
-    SUPPORTED_PRETEXT_TASKS = SUPPORTED_PRETEXT_TASKS
+    SUPPORTED_SUBTASKS = SUPPORTED_SUBTASKS
 
     def __init__(
         self: TCGAFeatureDataset,
@@ -338,10 +338,10 @@ class TCGAFeatureDataset(DatasetABC):
         features_dir: str,
         *,
         main_task: str = "subtyping",
-        pretext_tasks: list[str] | None = None,
+        subtasks: list[str] | None = None,
         manifest_path: str | None = None,
         main_labels_path: str | None = None,
-        pretext_labels_paths: dict[str, str] | None = None,
+        subtask_labels_paths: dict[str, str] | None = None,
         ordered_data_dir: str | None = None,
         portion_per_sample: float = 1.0,
         max_tiles_per_bag: int | None = None,
@@ -386,20 +386,20 @@ class TCGAFeatureDataset(DatasetABC):
                 f"Unsupported main_task: {main_task!r}. "
                 f"Must be one of {self.SUPPORTED_MAIN_TASKS}."
             )
-        if pretext_tasks is not None:
-            if not isinstance(pretext_tasks, list) or any(
-                not isinstance(task, str) or not task for task in pretext_tasks
+        if subtasks is not None:
+            if not isinstance(subtasks, list) or any(
+                not isinstance(task, str) or not task for task in subtasks
             ):
                 raise ValueError(
-                    "pretext_tasks must be a list of non-empty strings or None."
+                    "subtasks must be a list of non-empty strings or None."
                 )
-            if len(set(pretext_tasks)) != len(pretext_tasks):
-                raise ValueError("pretext_tasks must not contain duplicates.")
-            for task in pretext_tasks:
-                if task not in self.SUPPORTED_PRETEXT_TASKS:
+            if len(set(subtasks)) != len(subtasks):
+                raise ValueError("subtasks must not contain duplicates.")
+            for task in subtasks:
+                if task not in self.SUPPORTED_SUBTASKS:
                     raise ValueError(
-                        f"Unsupported pretext task: {task!r}. "
-                        f"Must be one of {self.SUPPORTED_PRETEXT_TASKS}."
+                        f"Unsupported subtask: {task!r}. "
+                        f"Must be one of {self.SUPPORTED_SUBTASKS}."
                     )
 
         if not isinstance(features_dir, str) or not features_dir:
@@ -438,10 +438,10 @@ class TCGAFeatureDataset(DatasetABC):
         self.root_dir = root_dir
         self.features_dir = os.path.abspath(features_dir)
         self.main_task = main_task
-        self.pretext_tasks: list[str] = list(pretext_tasks or [])
+        self.subtasks: list[str] = list(subtasks or [])
         self.manifest_path = manifest_path
         self.main_labels_path = main_labels_path
-        self.pretext_labels_paths: dict[str, str] = dict(pretext_labels_paths or {})
+        self.subtask_labels_paths: dict[str, str] = dict(subtask_labels_paths or {})
         self.ordered_data_dir = (
             ordered_data_dir
             if ordered_data_dir is not None
@@ -460,11 +460,11 @@ class TCGAFeatureDataset(DatasetABC):
         # Resolved-on-setup state, mirroring TCGASlideDataset.
         self._resolved_manifest_path: str | None = None
         self._resolved_main_labels_path: str | None = None
-        self._resolved_pretext_labels_paths: dict[str, str] = {}
+        self._resolved_subtask_labels_paths: dict[str, str] = {}
         self._main_submitter_labels: dict[str, int] | None = None
         self._main_label_names: tuple[str, ...] | None = None
-        self._pretext_submitter_labels: dict[str, dict[str, np.ndarray]] = {}
-        self._pretext_label_names: dict[str, tuple[str, ...]] = {}
+        self._subtask_submitter_labels: dict[str, dict[str, np.ndarray]] = {}
+        self._subtask_label_names: dict[str, tuple[str, ...]] = {}
         self._slide_splits: dict[str, list[SlideRecord]] | None = None
         self._feature_paths_by_slide_id: dict[str, str] | None = None
 
@@ -494,9 +494,9 @@ class TCGAFeatureDataset(DatasetABC):
         return len(self._main_label_names)
 
     @property
-    def num_pretext_labels(self: TCGAFeatureDataset) -> dict[str, int]:
-        """Dim of each pretext-task label vector (after labels are loaded)."""
-        return {task: len(names) for task, names in self._pretext_label_names.items()}
+    def num_subtask_labels(self: TCGAFeatureDataset) -> dict[str, int]:
+        """Dim of each subtask label vector (after labels are loaded)."""
+        return {task: len(names) for task, names in self._subtask_label_names.items()}
 
     # -- LightningDataModule API ---------------------------------------------
 
@@ -511,12 +511,12 @@ class TCGAFeatureDataset(DatasetABC):
         self._resolved_main_labels_path = resolve_slide_main_label_path(
             self.root_dir, self.main_task, self.main_labels_path, self.logger
         )
-        for pretext_task in self.pretext_tasks:
-            self._resolved_pretext_labels_paths[pretext_task] = (
-                resolve_slide_pretext_label_path(
+        for subtask in self.subtasks:
+            self._resolved_subtask_labels_paths[subtask] = (
+                resolve_slide_subtask_label_path(
                     self.root_dir,
-                    pretext_task,
-                    self.pretext_labels_paths.get(pretext_task),
+                    subtask,
+                    self.subtask_labels_paths.get(subtask),
                     self.logger,
                 )
             )
@@ -532,7 +532,7 @@ class TCGAFeatureDataset(DatasetABC):
         )
 
         self._ensure_main_labels_loaded()
-        self._ensure_pretext_labels_loaded()
+        self._ensure_subtask_labels_loaded()
         slide_splits = self._get_slide_splits()
         feature_paths_by_slide_id = self._discover_feature_cache(slide_splits)
         self._validate_cache_consistency(feature_paths_by_slide_id)
@@ -602,34 +602,34 @@ class TCGAFeatureDataset(DatasetABC):
             self.main_task,
         )
 
-    def _ensure_pretext_labels_loaded(self: TCGAFeatureDataset) -> None:
-        for pretext_task in self.pretext_tasks:
+    def _ensure_subtask_labels_loaded(self: TCGAFeatureDataset) -> None:
+        for subtask in self.subtasks:
             if (
-                pretext_task in self._pretext_submitter_labels
-                and pretext_task in self._pretext_label_names
+                subtask in self._subtask_submitter_labels
+                and subtask in self._subtask_label_names
             ):
                 continue
-            resolved_path = self._resolved_pretext_labels_paths.get(pretext_task)
+            resolved_path = self._resolved_subtask_labels_paths.get(subtask)
             if resolved_path is None:
-                resolved_path = resolve_slide_pretext_label_path(
+                resolved_path = resolve_slide_subtask_label_path(
                     self.root_dir,
-                    pretext_task,
-                    self.pretext_labels_paths.get(pretext_task),
+                    subtask,
+                    self.subtask_labels_paths.get(subtask),
                     self.logger,
                 )
-                self._resolved_pretext_labels_paths[pretext_task] = resolved_path
-            if pretext_task not in SUPPORTED_PRETEXT_TASKS:
-                raise ValueError(f"Unsupported pretext task: {pretext_task}")
+                self._resolved_subtask_labels_paths[subtask] = resolved_path
+            if subtask not in SUPPORTED_SUBTASKS:
+                raise ValueError(f"Unsupported subtask: {subtask}")
             submitter_labels, mutation_names = load_signature_labels(
                 resolved_path, logger=self.logger
             )
-            self._pretext_submitter_labels[pretext_task] = submitter_labels
-            self._pretext_label_names[pretext_task] = mutation_names
+            self._subtask_submitter_labels[subtask] = submitter_labels
+            self._subtask_label_names[subtask] = mutation_names
             self.logger.info(
-                "Loaded slide pretext labels: %d submitter(s), %d label(s) for task '%s'.",
+                "Loaded slide subtask labels: %d submitter(s), %d label(s) for task '%s'.",
                 len(submitter_labels),
                 len(mutation_names),
-                pretext_task,
+                subtask,
             )
 
     def _get_slide_splits(
@@ -642,7 +642,7 @@ class TCGAFeatureDataset(DatasetABC):
                 self.root_dir, self.manifest_path, self.logger
             )
         assert self._main_submitter_labels is not None
-        pretext_labels_by_task = self._pretext_submitter_labels
+        subtask_labels_by_task = self._subtask_submitter_labels
 
         slide_records = load_slide_records(
             manifest_path=self._resolved_manifest_path,
@@ -660,8 +660,8 @@ class TCGAFeatureDataset(DatasetABC):
             for record in slide_records
             if record.submitter_id in self._main_submitter_labels
             and all(
-                record.submitter_id in pretext_labels_by_task[pretext_task]
-                for pretext_task in self.pretext_tasks
+                record.submitter_id in subtask_labels_by_task[subtask]
+                for subtask in self.subtasks
             )
         ]
         dropped = len(slide_records) - len(labelled_records)
@@ -786,9 +786,9 @@ class TCGAFeatureDataset(DatasetABC):
             feature_paths_by_slide_id=self._feature_paths_by_slide_id,
             main_submitter_labels=self._main_submitter_labels,
             main_label_names=self._main_label_names,
-            pretext_tasks=self.pretext_tasks,
-            pretext_submitter_labels=self._pretext_submitter_labels,
-            pretext_label_names=self._pretext_label_names,
+            subtasks=self.subtasks,
+            subtask_submitter_labels=self._subtask_submitter_labels,
+            subtask_label_names=self._subtask_label_names,
             portion_per_sample=self.portion_per_sample,
             max_tiles_per_bag=self.max_tiles_per_bag,
             task=self.main_task,
@@ -816,31 +816,31 @@ class TCGAFeatureDataset(DatasetABC):
                 f"main_task must be one of {TCGAFeatureDataset.SUPPORTED_MAIN_TASKS}."
             )
 
-        pretext_tasks = config.get("pretext_tasks", None)
-        if pretext_tasks is not None:
-            if not isinstance(pretext_tasks, list) or any(
-                not isinstance(task, str) or not task for task in pretext_tasks
+        subtasks = config.get("subtasks", None)
+        if subtasks is not None:
+            if not isinstance(subtasks, list) or any(
+                not isinstance(task, str) or not task for task in subtasks
             ):
                 raise ValueError(
-                    "pretext_tasks must be a list of non-empty strings or None."
+                    "subtasks must be a list of non-empty strings or None."
                 )
-            for task in pretext_tasks:
-                if task not in TCGAFeatureDataset.SUPPORTED_PRETEXT_TASKS:
+            for task in subtasks:
+                if task not in TCGAFeatureDataset.SUPPORTED_SUBTASKS:
                     raise ValueError(
-                        f"Unsupported pretext task: {task!r}. Must be one of "
-                        f"{TCGAFeatureDataset.SUPPORTED_PRETEXT_TASKS}."
+                        f"Unsupported subtask: {task!r}. Must be one of "
+                        f"{TCGAFeatureDataset.SUPPORTED_SUBTASKS}."
                     )
 
-        pretext_labels_paths = config.get("pretext_labels_paths", None)
-        if pretext_labels_paths is not None and (
-            not isinstance(pretext_labels_paths, dict)
+        subtask_labels_paths = config.get("subtask_labels_paths", None)
+        if subtask_labels_paths is not None and (
+            not isinstance(subtask_labels_paths, dict)
             or any(
                 not isinstance(task, str) or not isinstance(path, str)
-                for task, path in pretext_labels_paths.items()
+                for task, path in subtask_labels_paths.items()
             )
         ):
             raise ValueError(
-                "pretext_labels_paths must be a dict of task name to path string."
+                "subtask_labels_paths must be a dict of task name to path string."
             )
 
         def _optional_str(key: str) -> str | None:
@@ -917,10 +917,10 @@ class TCGAFeatureDataset(DatasetABC):
             root_dir=root_dir,
             features_dir=features_dir,
             main_task=main_task,
-            pretext_tasks=pretext_tasks,
+            subtasks=subtasks,
             manifest_path=_optional_str("manifest_path"),
             main_labels_path=_optional_str("main_labels_path"),
-            pretext_labels_paths=pretext_labels_paths,
+            subtask_labels_paths=subtask_labels_paths,
             ordered_data_dir=_optional_str("ordered_data_dir"),
             portion_per_sample=float(portion_per_sample_value),
             max_tiles_per_bag=max_tiles_per_bag,

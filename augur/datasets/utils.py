@@ -139,13 +139,13 @@ def resolve_slide_main_label_path(
     return _resolve_path_from_atlas(atlas_path, entry_key=task, logger=logger)
 
 
-def resolve_slide_pretext_label_path(
+def resolve_slide_subtask_label_path(
     root_dir: str,
     task: str,
     labels_path: str | None = None,
     logger: logging.Logger | None = None,
 ) -> str:
-    """Resolve the slide-level pretext-task label table path.
+    """Resolve the slide-level subtask label table path.
 
     The atlas at ``root_dir/atlases/slide_subtask_atlas.txt`` maps a ``task``
     key (e.g. ``"sbs_regression"``, ``"dbs_regression"``, ``"id_regression"``,
@@ -156,8 +156,8 @@ def resolve_slide_pretext_label_path(
         if os.path.exists(labels_path):
             return labels_path
         if logger:
-            logger.error("Slide pretext labels file not found: %s", labels_path)
-        raise FileNotFoundError(f"Slide pretext labels file not found: {labels_path}")
+            logger.error("Slide subtask labels file not found: %s", labels_path)
+        raise FileNotFoundError(f"Slide subtask labels file not found: {labels_path}")
 
     atlas_path = os.path.join(root_dir, "atlases", "slide_subtask_atlas.txt")
     return _resolve_path_from_atlas(atlas_path, entry_key=task, logger=logger)

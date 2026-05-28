@@ -107,13 +107,16 @@ def load_yaml_config(
 
 _AGGREGATOR_VARIANTS_BY_BASE: dict[str, frozenset[str]] = {
     "clam": frozenset({"sb", "mb"}),
-    "dual-clam": frozenset({"sb", "mb"}),
     "mil": frozenset({"mean", "max", "attention"}),
 }
+
+_AGGREGATOR_SUBTASK_BASES: frozenset[str] = frozenset({"clam"})
 
 _AGGREGATOR_ATTENTION_VARIANTS: frozenset[str] = frozenset({"sb", "mb", "attention"})
 
 _AGGREGATOR_SUPPORTED_ADD_ONS: frozenset[str] = frozenset({"gated"})
+
+_AGGREGATOR_SUPPORTED_SUBTASKS: frozenset[str] = frozenset({"sbs", "dbs", "id", "cnv"})
 
 _AGGREGATOR_SUPPORTED_OPTIMIZERS: frozenset[str] = frozenset({"adamw"})
 
@@ -128,21 +131,28 @@ def load_aggregator_config(
     encoder: str,
     pretext: str,
     add_on: str | None = None,
+    subtask: str | None = None,
     optimizer: str = "adamw",
     lr_scheduler: str = "cosine",
 ) -> dict[str, Any]:
     """Compose an aggregator config from partial YAMLs under ``aggregator_dir``.
 
-    The aggregator YAML is split across seven partial axes:
+    The aggregator YAML is split across eight partial axes:
 
     - ``optimizer-{optimizer}.yaml``: optimizer recipe (``params.optimizer``).
     - ``lr-scheduler-{lr_scheduler}.yaml``: LR schedule (``params.lr_scheduler``).
-    - ``base-{base}.yaml``: bag-level architecture skeleton — ``clam``,
-      ``dual-clam``, or ``mil`` — including the per-task
-      ``task_weights`` / ``task_kwargs`` for the tasks that base uses.
-    - ``variant-{variant}.yaml``: variant within the base. For CLAM-family
-      bases the choices are ``sb`` / ``mb``; for MIL they are ``mean``,
-      ``max``, ``attention``.
+    - ``base-{base}.yaml``: bag-level architecture skeleton — ``clam`` or
+      ``mil`` — including the per-task ``task_weights`` / ``task_kwargs``
+      for the tasks that base uses.
+    - ``subtask-{subtask}.yaml`` *(optional)*: auxiliary regression
+      subtask layered onto the CLAM base (``sbs``, ``dbs``, ``id``,
+      ``cnv`` — COSMIC signature classes). Adds an entry to
+      ``params.subtasks``, an output dimension under
+      ``params.output_dims``, and a task weight under
+      ``params.task_weights``. Only valid with CLAM-family bases.
+    - ``variant-{variant}.yaml``: variant within the base. For CLAM the
+      choices are ``sb`` / ``mb``; for MIL they are ``mean``, ``max``,
+      ``attention``.
     - ``add-on-{add_on}.yaml`` *(optional)*: attention add-on. Only
       ``gated`` is supported and only with attention-based variants
       (``sb``, ``mb``, ``attention``).
@@ -151,13 +161,14 @@ def load_aggregator_config(
       consumed only to compose ``checkpoint_path``.
 
     Partials are deep-merged in the order
-    ``optimizer → lr_scheduler → base → variant → add_on → encoder →
-    pretext`` so that later partials override earlier ones (e.g.
-    ``add-on-gated`` flips ``attn_kwargs.gated`` from ``false`` to
+    ``optimizer → lr_scheduler → base → subtask → variant → add_on →
+    encoder → pretext`` so that later partials override earlier ones
+    (e.g. ``add-on-gated`` flips ``attn_kwargs.gated`` from ``false`` to
     ``true``). The final ``checkpoint_path`` is set to
-    ``checkpoints/{base}-{variant}[-{add_on}]-{encoder}-{pretext}.pth`` —
-    the optimizer / LR-scheduler choices do not appear in the checkpoint
-    filename because they don't affect the saved weight structure.
+    ``checkpoints/{base}[-{subtask}]-{variant}[-{add_on}]-{encoder}-{pretext}.pth``
+    — the optimizer / LR-scheduler choices do not appear in the
+    checkpoint filename because they don't affect the saved weight
+    structure.
 
     Returns a dict whose hierarchical structure matches the legacy
     single-file aggregator configs (``name``, ``params``,
@@ -175,6 +186,20 @@ def load_aggregator_config(
             f"variant={variant!r} is not supported for base={base!r}. "
             f"Choose one of {sorted(valid_variants)}."
         )
+
+    if subtask is not None:
+        if subtask not in _AGGREGATOR_SUPPORTED_SUBTASKS:
+            raise ValueError(
+                f"Unsupported aggregator subtask={subtask!r}. "
+                f"Choose one of {sorted(_AGGREGATOR_SUPPORTED_SUBTASKS)} or "
+                "omit it."
+            )
+        if base not in _AGGREGATOR_SUBTASK_BASES:
+            raise ValueError(
+                f"subtask={subtask!r} is only supported for "
+                f"base ∈ {sorted(_AGGREGATOR_SUBTASK_BASES)}; "
+                f"got base={base!r}."
+            )
 
     if add_on is not None:
         if add_on not in _AGGREGATOR_SUPPORTED_ADD_ONS:
@@ -206,8 +231,10 @@ def load_aggregator_config(
         aggregator_dir / f"optimizer-{optimizer}.yaml",
         aggregator_dir / f"lr-scheduler-{lr_scheduler}.yaml",
         aggregator_dir / f"base-{base}.yaml",
-        aggregator_dir / f"variant-{variant}.yaml",
     ]
+    if subtask is not None:
+        partial_paths.append(aggregator_dir / f"subtask-{subtask}.yaml")
+    partial_paths.append(aggregator_dir / f"variant-{variant}.yaml")
     if add_on is not None:
         partial_paths.append(aggregator_dir / f"add-on-{add_on}.yaml")
     partial_paths.append(aggregator_dir / f"encoder-{encoder}.yaml")
@@ -221,7 +248,10 @@ def load_aggregator_config(
             )
         merged = _deep_merge(merged, load_yaml_config(partial_path))
 
-    tokens = [base, variant]
+    tokens = [base]
+    if subtask is not None:
+        tokens.append(subtask)
+    tokens.append(variant)
     if add_on is not None:
         tokens.append(add_on)
     tokens.extend([encoder, pretext])

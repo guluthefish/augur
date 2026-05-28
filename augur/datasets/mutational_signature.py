@@ -1,9 +1,9 @@
-"""Mutational-signature pretext label utilities for slide-level datasets.
+"""Mutational-signature subtask label utilities for slide-level datasets.
 
 Supports per-submitter COSMIC signature exposure vectors produced by
 :mod:`scripts.data_handling.extract_signatures` for the SBS, DBS, ID, and CN
-(CNV48) signature classes. Each pretext task corresponds to one such
-contribution table on disk.
+(CNV48) signature classes. Each subtask corresponds to one such contribution
+table on disk.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-SUPPORTED_PRETEXT_TASKS: tuple[str, ...] = (
+SUPPORTED_SUBTASKS: tuple[str, ...] = (
     "sbs_regression",
     "dbs_regression",
     "id_regression",

@@ -71,13 +71,13 @@ class _TinyTileEncoder(ModelABC):
 
 
 def _load_real_slide_batch(
-    *, pretext_tasks: list[str] | None = None
+    *, subtasks: list[str] | None = None
 ) -> tuple[TCGASlideDataset, dict[str, Any]]:
     """Load one small real TCGA slide batch for DualCLAM tests."""
     datamodule = TCGASlideDataset(
         root_dir="data/TCGA-BRCA-test",
         main_task="subtyping",
-        pretext_tasks=pretext_tasks,
+        subtasks=subtasks,
         portion_per_sample=0.1,
         stride=512,
         tile_size=512,
@@ -104,7 +104,7 @@ def _load_real_slide_batch(
 
 def _build_dual_clam(
     *,
-    pretext_tasks: list[str] | None,
+    subtasks: list[str] | None,
     output_dims: dict[str, int],
     multi_branch: bool = False,
     gated: bool = True,
@@ -116,7 +116,7 @@ def _build_dual_clam(
     return DualCLAM(
         encoder=encoder,
         main_task="subtyping",
-        pretext_tasks=pretext_tasks,
+        subtasks=subtasks,
         enc_dim=encoder.feature_dim,
         hidden_dims=[8],
         output_dims=output_dims,
@@ -143,9 +143,9 @@ def _test_init() -> None:
 
     num_subtype_classes = 5
 
-    # Single-branch, no pretext.
+    # Single-branch, no subtask.
     model_sb = _build_dual_clam(
-        pretext_tasks=None,
+        subtasks=None,
         output_dims={"subtyping": num_subtype_classes},
     )
     assert isinstance(
@@ -159,13 +159,13 @@ def _test_init() -> None:
     ), f"SB must use num_heads=1. Got: {model_sb.backbone.num_heads}."
     assert model_sb.backbone.num_main_branches == 1
     assert (
-        not model_sb.pretext_tasks
-    ), f"No-pretext model must have empty pretext_tasks. Got: {model_sb.pretext_tasks}."
+        not model_sb.subtasks
+    ), f"No-subtask model must have empty subtasks. Got: {model_sb.subtasks}."
     assert isinstance(
         model_sb.backbone.attention_net, GatedAttention
     ), "Default attention should be gated."
     assert set(model_sb.backbone.heads.keys()) == {"subtyping"}, (
-        "No-pretext model should only have the main head. "
+        "No-subtask model should only have the main head. "
         f"Got: {set(model_sb.backbone.heads.keys())}."
     )
     # Instance classifiers are anchored on the main classification task.
@@ -175,28 +175,28 @@ def _test_init() -> None:
         f"Got: {len(model_sb.backbone.instance_classifiers)}."
     )
 
-    # Single-branch with pretext: adds a pretext head but keeps one shared branch.
-    model_sb_pretext = _build_dual_clam(
-        pretext_tasks=["sbs_regression"],
+    # Single-branch with subtask: adds a subtask head but keeps one shared branch.
+    model_sb_subtask = _build_dual_clam(
+        subtasks=["sbs_regression"],
         output_dims={"subtyping": num_subtype_classes, "sbs_regression": 96},
     )
     assert isinstance(
-        model_sb_pretext.backbone, DualCLAM_SB
-    ), "multi_branch=False should keep the SB backbone even with pretext tasks."
-    assert model_sb_pretext.backbone.num_heads == 1
-    assert set(model_sb_pretext.backbone.heads.keys()) == {
+        model_sb_subtask.backbone, DualCLAM_SB
+    ), "multi_branch=False should keep the SB backbone even with subtasks."
+    assert model_sb_subtask.backbone.num_heads == 1
+    assert set(model_sb_subtask.backbone.heads.keys()) == {
         "subtyping",
         "sbs_regression",
     }
     # In SB, every task slices branches [0, 1).
-    assert model_sb_pretext.backbone.branch_layout == {
+    assert model_sb_subtask.backbone.branch_layout == {
         "subtyping": (0, 1),
         "sbs_regression": (0, 1),
     }
 
-    # Multi-branch: num_heads = num_main_classes + len(pretext_tasks).
+    # Multi-branch: num_heads = num_main_classes + len(subtasks).
     model_mb = _build_dual_clam(
-        pretext_tasks=["sbs_regression"],
+        subtasks=["sbs_regression"],
         output_dims={"subtyping": num_subtype_classes, "sbs_regression": 96},
         multi_branch=True,
         gated=False,
@@ -206,7 +206,7 @@ def _test_init() -> None:
     ), f"Expected DualCLAM_MB backbone. Got: {type(model_mb.backbone)}."
     expected_num_heads = num_subtype_classes + 1
     assert model_mb.backbone.num_heads == expected_num_heads, (
-        f"MB num_heads must equal num_subtype_classes + len(pretext_tasks) = "
+        f"MB num_heads must equal num_subtype_classes + len(subtasks) = "
         f"{expected_num_heads}. Got: {model_mb.backbone.num_heads}."
     )
     assert model_mb.backbone.num_main_branches == num_subtype_classes
@@ -215,7 +215,7 @@ def _test_init() -> None:
     ), "Non-gated attention should use the plain Attention class."
 
     # Branch layout puts the main task on the first num_main_branches and
-    # appends one branch per pretext task.
+    # appends one branch per subtask.
     assert model_mb.backbone.branch_layout == {
         "subtyping": (0, num_subtype_classes),
         "sbs_regression": (num_subtype_classes, num_subtype_classes + 1),
@@ -230,7 +230,7 @@ def _test_init() -> None:
     )
     assert subtyping_head.out_features == num_subtype_classes
 
-    # SBS pretext head consumes its single branch.
+    # SBS subtask head consumes its single branch.
     sbs_head = model_mb.backbone.heads["sbs_regression"]
     assert isinstance(sbs_head, nn.Linear)
     assert sbs_head.in_features == model_mb.backbone.projection_dim
@@ -242,22 +242,22 @@ def _test_init() -> None:
     print("[OK] DualCLAM initialization test passed.")
 
 
-def _test_real_data_no_pretext() -> None:
-    """Without pretext tasks, DualCLAM reduces to plain CLAM on subtyping."""
-    print("Testing DualCLAM without pretext tasks on real slide data...")
+def _test_real_data_no_subtask() -> None:
+    """Without subtasks, DualCLAM reduces to plain CLAM on subtyping."""
+    print("Testing DualCLAM without subtasks on real slide data...")
 
-    datamodule, batch = _load_real_slide_batch(pretext_tasks=None)
+    datamodule, batch = _load_real_slide_batch(subtasks=None)
     try:
         assert set(batch.keys()) == {
             "image",
             "mask",
             "target",
             "metadata",
-        }, f"Unexpected batch keys without pretext: {set(batch.keys())}."
+        }, f"Unexpected batch keys without subtask: {set(batch.keys())}."
 
         num_classes = datamodule.num_main_labels
         model = _build_dual_clam(
-            pretext_tasks=None,
+            subtasks=None,
             output_dims={"subtyping": num_classes},
         )
         model.eval()
@@ -297,14 +297,14 @@ def _test_real_data_no_pretext() -> None:
     finally:
         datamodule.teardown()
 
-    print("[OK] DualCLAM no-pretext real-data test passed.")
+    print("[OK] DualCLAM no-subtask real-data test passed.")
 
 
-def _test_real_data_with_pretext_sb() -> None:
-    """DualCLAM-SB with an SBS pretext should return both heads and both losses."""
-    print("Testing DualCLAM (SB) with pretext sbs_regression on real slide data...")
+def _test_real_data_with_subtask_sb() -> None:
+    """DualCLAM-SB with an SBS subtask should return both heads and both losses."""
+    print("Testing DualCLAM (SB) with subtask sbs_regression on real slide data...")
 
-    datamodule, batch = _load_real_slide_batch(pretext_tasks=["sbs_regression"])
+    datamodule, batch = _load_real_slide_batch(subtasks=["sbs_regression"])
     try:
         expected_keys = {"image", "mask", "target", "sbs_regression", "metadata"}
         assert (
@@ -312,9 +312,9 @@ def _test_real_data_with_pretext_sb() -> None:
         ), f"Expected batch keys {expected_keys}. Got: {set(batch.keys())}."
 
         num_classes = datamodule.num_main_labels
-        sbs_dim = datamodule.num_pretext_labels["sbs_regression"]
+        sbs_dim = datamodule.num_subtask_labels["sbs_regression"]
         model = _build_dual_clam(
-            pretext_tasks=["sbs_regression"],
+            subtasks=["sbs_regression"],
             output_dims={"subtyping": num_classes, "sbs_regression": sbs_dim},
         )
         model.eval()
@@ -347,23 +347,23 @@ def _test_real_data_with_pretext_sb() -> None:
         assert set(metrics.keys()) == {
             "subtyping_loss",
             "sbs_regression_loss",
-        }, f"Expected main + pretext losses. Got: {set(metrics.keys())}."
+        }, f"Expected main + subtask losses. Got: {set(metrics.keys())}."
     finally:
         datamodule.teardown()
 
-    print("[OK] DualCLAM SB-with-pretext real-data test passed.")
+    print("[OK] DualCLAM SB-with-subtask real-data test passed.")
 
 
-def _test_real_data_with_pretext_mb() -> None:
-    """DualCLAM-MB has one branch per subtype class plus one branch per pretext task."""
-    print("Testing DualCLAM (MB) with pretext sbs_regression on real slide data...")
+def _test_real_data_with_subtask_mb() -> None:
+    """DualCLAM-MB has one branch per subtype class plus one branch per subtask."""
+    print("Testing DualCLAM (MB) with subtask sbs_regression on real slide data...")
 
-    datamodule, batch = _load_real_slide_batch(pretext_tasks=["sbs_regression"])
+    datamodule, batch = _load_real_slide_batch(subtasks=["sbs_regression"])
     try:
         num_classes = datamodule.num_main_labels
-        sbs_dim = datamodule.num_pretext_labels["sbs_regression"]
+        sbs_dim = datamodule.num_subtask_labels["sbs_regression"]
         model = _build_dual_clam(
-            pretext_tasks=["sbs_regression"],
+            subtasks=["sbs_regression"],
             output_dims={"subtyping": num_classes, "sbs_regression": sbs_dim},
             multi_branch=True,
         )
@@ -402,19 +402,19 @@ def _test_real_data_with_pretext_mb() -> None:
     finally:
         datamodule.teardown()
 
-    print("[OK] DualCLAM MB-with-pretext real-data test passed.")
+    print("[OK] DualCLAM MB-with-subtask real-data test passed.")
 
 
 def _test_instance_clustering_loss() -> None:
     """inst_weight>0 should add a subtyping_instance_loss metric."""
     print("Testing DualCLAM instance clustering loss...")
 
-    datamodule, batch = _load_real_slide_batch(pretext_tasks=["sbs_regression"])
+    datamodule, batch = _load_real_slide_batch(subtasks=["sbs_regression"])
     try:
         num_classes = datamodule.num_main_labels
-        sbs_dim = datamodule.num_pretext_labels["sbs_regression"]
+        sbs_dim = datamodule.num_subtask_labels["sbs_regression"]
         model = _build_dual_clam(
-            pretext_tasks=["sbs_regression"],
+            subtasks=["sbs_regression"],
             output_dims={"subtyping": num_classes, "sbs_regression": sbs_dim},
             multi_branch=True,
             inst_weight=0.5,
@@ -467,15 +467,15 @@ def _test_error_handling() -> None:
         output_dims={"regression": 5},
     )
 
-    # Unsupported pretext task.
+    # Unsupported subtask.
     _assert_raises(
         ValueError,
         DualCLAM,
         main_task="subtyping",
-        pretext_tasks=["unsupported_pretext"],
+        subtasks=["unsupported_subtask"],
         enc_dim=4,
         hidden_dims=[8],
-        output_dims={"subtyping": 5, "unsupported_pretext": 3},
+        output_dims={"subtyping": 5, "unsupported_subtask": 3},
     )
 
     # main_task missing from output_dims.
@@ -536,7 +536,7 @@ def _test_error_handling() -> None:
 
     # model_step without a main-task target.
     model = _build_dual_clam(
-        pretext_tasks=None,
+        subtasks=None,
         output_dims={"subtyping": 5},
     )
     _assert_raises(
@@ -554,7 +554,7 @@ def _test_from_config() -> None:
     """DualCLAM.from_config should parse a full config into a working model."""
     print("Testing DualCLAM.from_config()...")
 
-    # Case 1: Minimal config — encoder-less, no pretext, default main_task.
+    # Case 1: Minimal config — encoder-less, no subtask, default main_task.
     minimal_model = DualCLAM.from_config(
         {
             "enc_dim": 6,
@@ -568,7 +568,7 @@ def _test_from_config() -> None:
         minimal_model.backbone, DualCLAM_SB
     ), "Default attn_kwargs.multi_branch=False should select the SB backbone."
     assert minimal_model.main_task == "subtyping"
-    assert not minimal_model.pretext_tasks
+    assert not minimal_model.subtasks
     assert (
         not minimal_model.task_kwargs
     ), f"Omitting task_kwargs should leave it empty. Got: {minimal_model.task_kwargs}."
@@ -580,10 +580,10 @@ def _test_from_config() -> None:
     assert minimal_out["subtyping"].shape == (2, 4)
     assert minimal_out["_attention_weights"].shape == (2, 1, 3)
 
-    # Case 2: Full config — pretext, task weights/kwargs, MB, optimizer, scheduler.
+    # Case 2: Full config — subtask, task weights/kwargs, MB, optimizer, scheduler.
     full_config = {
         "main_task": "subtyping",
-        "pretext_tasks": ["sbs_regression"],
+        "subtasks": ["sbs_regression"],
         "task_weights": {"subtyping": 2.0, "sbs_regression": 1.0},
         "task_kwargs": {"subtyping": {"unknown_class_index": 0}},
         "enc_dim": 6,
@@ -615,14 +615,14 @@ def _test_from_config() -> None:
     assert isinstance(
         full_model.backbone, DualCLAM_MB
     ), "multi_branch=True should select the MB backbone."
-    expected_num_heads = 4 + 1  # output_dims[subtyping] + len(pretext_tasks)
+    expected_num_heads = 4 + 1  # output_dims[subtyping] + len(subtasks)
     assert full_model.backbone.num_heads == expected_num_heads, (
-        f"MB num_heads must equal num_main_branches + len(pretext_tasks) = "
+        f"MB num_heads must equal num_main_branches + len(subtasks) = "
         f"{expected_num_heads}. Got: {full_model.backbone.num_heads}."
     )
     assert full_model.backbone.num_main_branches == 4
     assert isinstance(full_model.backbone.attention_net, GatedAttention)
-    assert full_model.pretext_tasks == ["sbs_regression"]
+    assert full_model.subtasks == ["sbs_regression"]
 
     # Task weights normalize to sum=1 while preserving the ratio.
     assert full_model.task_weights == {
@@ -707,9 +707,9 @@ def test_DualCLAM() -> None:
     print("Running slide-level DualCLAM tests...")
     _test_init()
     _test_from_config()
-    _test_real_data_no_pretext()
-    _test_real_data_with_pretext_sb()
-    _test_real_data_with_pretext_mb()
+    _test_real_data_no_subtask()
+    _test_real_data_with_subtask_sb()
+    _test_real_data_with_subtask_mb()
     _test_instance_clustering_loss()
     _test_error_handling()
     print("All slide-level DualCLAM tests passed!")

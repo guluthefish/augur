@@ -1,8 +1,8 @@
-"""CLAM-inspired slide-level MIL model with subtyping main + mutational-signature pretext heads.
+"""CLAM-inspired slide-level MIL model with subtyping main + mutational-signature subtask heads.
 
 Implements CLAM (Clustering-constrained Attention Multiple instance learning,
 Lu et al., 2021) as a Lightning module. The main task is slide-level subtyping
-(classification, cross-entropy). Pretext tasks are per-submitter COSMIC
+(classification, cross-entropy). Subtask tasks are per-submitter COSMIC
 signature exposure heads — one per signature class produced by
 :func:`scripts.data_handling.extract_signatures.extract_signature_labels`
 (``sbs_regression``, ``dbs_regression``, ``id_regression``, ``cnv_regression``).
@@ -11,8 +11,8 @@ The single- and multi-branch backbones (:class:`DualCLAM_SB` /
 :class:`DualCLAM_MB`) mirror CLAM-SB and CLAM-MB from the original repo at
 https://github.com/mahmoodlab/CLAM, but multi-branch is anchored on the
 main subtyping task: one attention branch per subtype class, plus one
-extra branch per configured pretext task. For example, with 8 subtype
-classes and ``pretext_tasks=["sbs_regression"]`` the MB backbone uses
+extra branch per configured subtask. For example, with 8 subtype
+classes and ``subtasks=["sbs_regression"]`` the MB backbone uses
 ``num_heads = 8 + 1 = 9``.
 """
 
@@ -43,7 +43,7 @@ from augur.utils.metrics import (
 )
 
 _SUPPORTED_MAIN_TASKS: tuple[str, ...] = ("subtyping",)
-_SUPPORTED_PRETEXT_TASKS: tuple[str, ...] = (
+_SUPPORTED_SUBTASKS: tuple[str, ...] = (
     "sbs_regression",
     "dbs_regression",
     "id_regression",
@@ -115,7 +115,7 @@ class _DualCLAMBase(nn.Module):
         self,
         encoder: ModelABC | None,
         main_task: str,
-        pretext_tasks: list[str] | None,
+        subtasks: list[str] | None,
         *,
         enc_dim: int,
         hidden_dims: list[int],
@@ -152,15 +152,15 @@ class _DualCLAMBase(nn.Module):
                 f"output_dims['{main_task}'] must be an integer > 1 for "
                 f"a classification main task. Got: {output_dims[main_task]}"
             )
-        for pretext in pretext_tasks or []:
-            if pretext not in output_dims:
+        for subtask in subtasks or []:
+            if subtask not in output_dims:
                 raise ValueError(
-                    f"output_dims must include an entry for pretext task '{pretext}'."
+                    f"output_dims must include an entry for subtask '{subtask}'."
                 )
-            if not isinstance(output_dims[pretext], int) or output_dims[pretext] <= 0:
+            if not isinstance(output_dims[subtask], int) or output_dims[subtask] <= 0:
                 raise ValueError(
-                    f"output_dims['{pretext}'] must be a positive integer. "
-                    f"Got: {output_dims[pretext]}"
+                    f"output_dims['{subtask}'] must be a positive integer. "
+                    f"Got: {output_dims[subtask]}"
                 )
         if not isinstance(dropout, (int, float)) or not 0.0 <= dropout < 1.0:
             raise ValueError(f"dropout must be a float in [0.0, 1.0). Got: {dropout}")
@@ -182,7 +182,7 @@ class _DualCLAMBase(nn.Module):
         self.encoder_chunk_size = encoder_chunk_size
 
         self.main_task = main_task
-        self.pretext_tasks: list[str] = list(pretext_tasks or [])
+        self.subtasks: list[str] = list(subtasks or [])
         self.enc_dim = int(enc_dim)
         self.hidden_dims = list(hidden_dims)
         self.projection_dim = int(hidden_dims[-1])
@@ -190,18 +190,18 @@ class _DualCLAMBase(nn.Module):
 
         # Branch layout. SB (num_main_branches == 1) shares the single branch
         # across all tasks. MB allocates one branch per main-task class plus
-        # one extra branch per pretext task.
+        # one extra branch per subtask.
         if self.num_main_branches == 1:
             self.num_heads = 1
             self.branch_layout: dict[str, tuple[int, int]] = {
-                task: (0, 1) for task in [main_task, *self.pretext_tasks]
+                task: (0, 1) for task in [main_task, *self.subtasks]
             }
         else:
-            self.num_heads = self.num_main_branches + len(self.pretext_tasks)
+            self.num_heads = self.num_main_branches + len(self.subtasks)
             self.branch_layout = {main_task: (0, self.num_main_branches)}
-            for i, pretext in enumerate(self.pretext_tasks):
+            for i, subtask in enumerate(self.subtasks):
                 start = self.num_main_branches + i
-                self.branch_layout[pretext] = (start, start + 1)
+                self.branch_layout[subtask] = (start, start + 1)
 
         self.projection = _build_projection(enc_dim, self.hidden_dims, float(dropout))
 
@@ -218,7 +218,7 @@ class _DualCLAMBase(nn.Module):
         )
 
         self.heads = nn.ModuleDict()
-        for task_name in [main_task, *self.pretext_tasks]:
+        for task_name in [main_task, *self.subtasks]:
             start, end = self.branch_layout[task_name]
             head_in_dim = (end - start) * self.projection_dim
             self.heads[task_name] = nn.Linear(head_in_dim, int(output_dims[task_name]))
@@ -364,14 +364,14 @@ class DualCLAM_SB(_DualCLAMBase):
     """Single-branch CLAM backbone.
 
     A single attention distribution is shared across the main task and every
-    pretext task (equivalent to CLAM-SB in the original paper).
+    subtask (equivalent to CLAM-SB in the original paper).
     """
 
     def __init__(
         self: DualCLAM_SB,
         encoder: ModelABC | None = None,
         main_task: str = "subtyping",
-        pretext_tasks: list[str] | None = None,
+        subtasks: list[str] | None = None,
         *,
         enc_dim: int,
         hidden_dims: list[int],
@@ -385,7 +385,7 @@ class DualCLAM_SB(_DualCLAMBase):
         super().__init__(
             encoder=encoder,
             main_task=main_task,
-            pretext_tasks=pretext_tasks,
+            subtasks=subtasks,
             enc_dim=enc_dim,
             hidden_dims=hidden_dims,
             output_dims=output_dims,
@@ -403,16 +403,16 @@ class DualCLAM_MB(_DualCLAMBase):
 
     Allocates ``num_main_branches = output_dims[main_task]`` attention branches
     for the main subtyping task — one branch per subtype class — plus one
-    extra branch per configured pretext task (each pretext gets its own single
+    extra branch per configured subtask (each subtask gets its own single
     attention distribution). Total ``num_heads = output_dims[main_task] +
-    len(pretext_tasks)``.
+    len(subtasks)``.
     """
 
     def __init__(
         self: DualCLAM_MB,
         encoder: ModelABC | None = None,
         main_task: str = "subtyping",
-        pretext_tasks: list[str] | None = None,
+        subtasks: list[str] | None = None,
         *,
         enc_dim: int,
         hidden_dims: list[int],
@@ -437,7 +437,7 @@ class DualCLAM_MB(_DualCLAMBase):
         super().__init__(
             encoder=encoder,
             main_task=main_task,
-            pretext_tasks=pretext_tasks,
+            subtasks=subtasks,
             enc_dim=enc_dim,
             hidden_dims=hidden_dims,
             output_dims=output_dims,
@@ -451,12 +451,12 @@ class DualCLAM_MB(_DualCLAMBase):
 
 
 class DualCLAM(ModelABC):
-    """CLAM-based Lightning model for slide-level subtyping + SBS pretexts.
+    """CLAM-based Lightning model for slide-level subtyping + SBS subtasks.
 
     Batch layout (matches ``TCGASlideDataset``):
 
     - Main subtyping target: ``batch["target"]`` — ``(B,)`` long.
-    - Each pretext SBS target: ``batch[pretext_task]["target"]`` — ``(B, D)``
+    - Each subtask target: ``batch[subtask]["target"]`` — ``(B, D)``
       float vector.
 
     Parameters
@@ -466,9 +466,9 @@ class DualCLAM(ModelABC):
         pre-computed feature bags of shape ``(B, K, D)``.
     main_task
         Currently must be ``"subtyping"`` (classification with cross-entropy).
-    pretext_tasks
-        Optional list of SBS pretext task names from
-        :data:`_SUPPORTED_PRETEXT_TASKS`. Each adds a separate decoder head
+    subtasks
+        Optional list of SBS subtask names from
+        :data:`_SUPPORTED_SUBTASKS`. Each adds a separate decoder head
         and (in MB) a separate attention branch.
     task_weights
         Optional per-task positive weights. Normalized to sum to 1.
@@ -487,7 +487,7 @@ class DualCLAM(ModelABC):
         projection dim ``L``.
     output_dims
         Mapping from task name to head output dim. Must include ``main_task``
-        (with ``> 1`` classes) and every entry of ``pretext_tasks``.
+        (with ``> 1`` classes) and every entry of ``subtasks``.
     dropout
         Dropout applied inside the projection MLP.
     attn_kwargs
@@ -522,7 +522,7 @@ class DualCLAM(ModelABC):
         self: DualCLAM,
         encoder: ModelABC | None = None,
         main_task: str = "subtyping",
-        pretext_tasks: list[str] | None = None,
+        subtasks: list[str] | None = None,
         task_weights: dict[str, float] | None = None,
         task_kwargs: dict[str, Any] | None = None,
         *,
@@ -553,12 +553,12 @@ class DualCLAM(ModelABC):
                 f"main_task must be one of {_SUPPORTED_MAIN_TASKS}. "
                 f"Got: {main_task!r}"
             )
-        pretext_list = list(pretext_tasks or [])
-        for pretext in pretext_list:
-            if pretext not in _SUPPORTED_PRETEXT_TASKS:
+        subtask_list = list(subtasks or [])
+        for subtask in subtask_list:
+            if subtask not in _SUPPORTED_SUBTASKS:
                 raise ValueError(
-                    f"pretext task must be one of {_SUPPORTED_PRETEXT_TASKS}. "
-                    f"Got: {pretext!r}"
+                    f"subtask must be one of {_SUPPORTED_SUBTASKS}. "
+                    f"Got: {subtask!r}"
                 )
 
         attn_cfg = dict(attn_kwargs or {})
@@ -585,7 +585,7 @@ class DualCLAM(ModelABC):
         self.backbone = backbone_cls(
             encoder=encoder,
             main_task=main_task,
-            pretext_tasks=pretext_list or None,
+            subtasks=subtask_list or None,
             enc_dim=enc_dim,
             hidden_dims=hidden_dims,
             output_dims=output_dims,
@@ -599,10 +599,10 @@ class DualCLAM(ModelABC):
         self.encoder_chunk_size = self.backbone.encoder_chunk_size
 
         self.main_task = main_task
-        self.pretext_tasks = pretext_list
+        self.subtasks = subtask_list
         self.output_dims = dict(output_dims)
 
-        all_tasks = [main_task, *pretext_list]
+        all_tasks = [main_task, *subtask_list]
         if not task_weights:
             task_weights = {name: 1.0 for name in all_tasks}
         normalized = {name: float(task_weights.get(name, 1.0)) for name in all_tasks}
@@ -652,7 +652,7 @@ class DualCLAM(ModelABC):
                 "encoder": _component_name(encoder),
                 "backbone": _component_name(self.backbone),
                 "main_task": main_task,
-                "pretext_tasks": pretext_list,
+                "subtasks": subtask_list,
                 "task_weights": self.task_weights,
                 "task_kwargs": self.task_kwargs,
                 "enc_dim": enc_dim,
@@ -676,7 +676,7 @@ class DualCLAM(ModelABC):
 
         Recognized keys mirror the constructor parameters: ``tile_model_config``
         (path or inline dict for a :class:`TileModel` whose encoder is reused),
-        ``main_task``, ``pretext_tasks``, ``task_weights``, ``task_kwargs``,
+        ``main_task``, ``subtasks``, ``task_weights``, ``task_kwargs``,
         ``enc_dim``, ``hidden_dims``, ``output_dims``, ``dropout``,
         ``attn_kwargs``, ``cluster_kwargs``, ``freeze_encoder``,
         ``optimizer``, and ``lr_scheduler``.
@@ -722,11 +722,11 @@ class DualCLAM(ModelABC):
             isinstance(main_task, str) and main_task
         ), "main_task must be a non-empty string"
 
-        pretext_tasks = config.get("pretext_tasks", None)
-        if pretext_tasks is not None:
-            assert isinstance(pretext_tasks, list) and all(
-                isinstance(t, str) and t for t in pretext_tasks
-            ), "pretext_tasks must be a list of non-empty strings when provided"
+        subtasks = config.get("subtasks", None)
+        if subtasks is not None:
+            assert isinstance(subtasks, list) and all(
+                isinstance(t, str) and t for t in subtasks
+            ), "subtasks must be a list of non-empty strings when provided"
 
         task_weights = config.get("task_weights", None)
         if task_weights is not None and not isinstance(task_weights, dict):
@@ -788,7 +788,7 @@ class DualCLAM(ModelABC):
         return DualCLAM(
             encoder=encoder,
             main_task=main_task,
-            pretext_tasks=pretext_tasks,
+            subtasks=subtasks,
             task_weights=task_weights,
             task_kwargs=task_kwargs,
             enc_dim=enc_dim,
@@ -843,7 +843,7 @@ class DualCLAM(ModelABC):
     def model_step(
         self: DualCLAM, batch: Any, batch_idx: int, stage: str
     ) -> Tensor | tuple[Tensor, dict[str, Any]]:
-        """Compute CLAM's bag-level + optional pretext + instance-clustering losses."""
+        """Compute CLAM's bag-level + optional subtask + instance-clustering losses."""
         del batch_idx, stage
 
         if not isinstance(batch, dict):
@@ -870,23 +870,23 @@ class DualCLAM(ModelABC):
         total_loss = self.task_weights[self.main_task] * main_loss
         metrics: dict[str, Tensor] = {f"{self.main_task}_loss": main_loss.detach()}
 
-        # Pretext SBS losses (vector regression / multilabel).
-        for pretext in self.pretext_tasks:
-            pretext_batch = batch.get(pretext)
-            if not isinstance(pretext_batch, dict):
+        # Subtask SBS losses (vector regression / multilabel).
+        for subtask in self.subtasks:
+            subtask_batch = batch.get(subtask)
+            if not isinstance(subtask_batch, dict):
                 continue
-            pretext_target = pretext_batch.get("target")
-            if pretext_target is None:
+            subtask_target = subtask_batch.get("target")
+            if subtask_target is None:
                 continue
-            if not isinstance(pretext_target, Tensor):
-                raise TypeError(f"Pretext '{pretext}' target must be a torch.Tensor.")
+            if not isinstance(subtask_target, Tensor):
+                raise TypeError(f"Subtask '{subtask}' target must be a torch.Tensor.")
 
-            pretext_logits = predictions[pretext]
-            pretext_loss = self._compute_pretext_loss(
-                pretext, pretext_logits, pretext_target
+            subtask_logits = predictions[subtask]
+            subtask_loss = self._compute_subtask_loss(
+                subtask, subtask_logits, subtask_target
             )
-            total_loss = total_loss + self.task_weights[pretext] * pretext_loss
-            metrics[f"{pretext}_loss"] = pretext_loss.detach()
+            total_loss = total_loss + self.task_weights[subtask] * subtask_loss
+            metrics[f"{subtask}_loss"] = subtask_loss.detach()
 
         # Instance clustering on the main subtyping task.
         if self.inst_weight > 0.0:
@@ -919,14 +919,14 @@ class DualCLAM(ModelABC):
                     f"No default loss defined for main_task '{self.main_task}'."
                 )
 
-    def _compute_pretext_loss(
+    def _compute_subtask_loss(
         self: DualCLAM,
-        pretext_task: str,
+        subtask: str,
         prediction: Tensor,
         target: Tensor,
     ) -> Tensor:
-        """Dispatch the pretext mutational-signature loss based on the task name."""
-        match pretext_task:
+        """Dispatch the subtask mutational-signature loss based on the task name."""
+        match subtask:
             case (
                 "sbs_regression"
                 | "dbs_regression"
@@ -938,7 +938,7 @@ class DualCLAM(ModelABC):
                 return compute_distribution_kl_loss(prediction, target)
             case _:
                 raise ValueError(
-                    f"No default loss defined for pretext task '{pretext_task}'."
+                    f"No default loss defined for subtask '{subtask}'."
                 )
 
     def _compute_instance_loss(
