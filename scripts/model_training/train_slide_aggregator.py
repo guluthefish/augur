@@ -20,7 +20,12 @@ from augur.models.model_abc import ModelABC
 from augur.models.slide_level.factory import (
     get_module_from_config as get_slide_module_from_config,
 )
-from augur.utils.config import load_aggregator_config, load_yaml_config
+from augur.utils.config import (
+    load_aggregator_config,
+    load_dataset_config,
+    load_trainer_config,
+    load_yaml_config,
+)
 from augur.utils.logger import setup_logger
 
 mp.set_sharing_strategy("file_system")
@@ -370,11 +375,17 @@ def _create_model(
     return model
 
 
-def _load_dataset(config_path: str, logger: logging.Logger) -> DatasetABC:
-    """Instantiate the dataset datamodule from a YAML config."""
-    config = load_yaml_config(config_path)
-    dataset = get_dataset_from_config(config)
-    logger.info("Loaded datamodule from %s", os.path.abspath(config_path))
+def _load_dataset(
+    dataset_config: dict[str, Any], logger: logging.Logger
+) -> DatasetABC:
+    """Instantiate the dataset datamodule from a merged config dict."""
+    dataset = get_dataset_from_config(dataset_config)
+    logger.info(
+        "Instantiated datamodule %s with main_task=%s subtasks=%s",
+        type(dataset).__name__,
+        getattr(dataset, "main_task", None),
+        getattr(dataset, "subtasks", None),
+    )
     return dataset
 
 
@@ -480,10 +491,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     :func:`augur.utils.config.load_aggregator_config`):
 
     - ``--base``: bag-level architecture (``clam`` or ``mil``).
-    - ``--subtask``: optional aggregator-level auxiliary subtask layered
-      onto the CLAM base. One of ``sbs``, ``dbs``, ``id``, ``cnv``
-      (COSMIC signature classes). Omit for plain CLAM. Not allowed for
-      MIL.
+    - ``--subtask``: zero or more aggregator-level auxiliary subtasks
+      layered onto the CLAM base. Tokens drawn from ``sbs``, ``dbs``,
+      ``id``, ``cnv`` (COSMIC signature classes). Multiple tokens stack
+      one head per subtask. Omit for plain CLAM. Not allowed for MIL.
     - ``--variant``: variant within the base. CLAM uses ``sb`` / ``mb``;
       MIL uses ``mean`` / ``max`` / ``attention``.
     - ``--add-on``: optional attention add-on; ``gated`` is the only
@@ -493,7 +504,24 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     - ``--pretext``: encoder pretext task; consumed only to compose the
       aggregator's ``checkpoint_path`` (and to select the matching
       ``pretext-{name}.yaml`` marker partial).
-    - ``--optimizer`` / ``--lr-scheduler``: training-recipe partials.
+
+    The optimizer + LR-scheduler recipe is pulled in automatically from
+    ``configs/optimizers.yaml`` (each ``base-{base}.yaml`` extends it).
+
+    The data config is similarly composed via
+    :func:`augur.utils.config.load_dataset_config`:
+
+    - ``--dataset``: dataset base token (e.g. ``tcga-brca``,
+      ``tcga-brca-test``) → ``base-{token}.yaml``.
+    - ``--precomputed`` *(flag)*: use a precomputed-feature datamodule
+      (``TCGAFeatureDataset``) instead of the default slide datamodule
+      (``TCGASlideDataset``); merges ``flavor-feature.yaml`` on top.
+    - ``--features-dir``: explicit features directory when
+      ``--precomputed`` is set; otherwise defaults to
+      ``<root_dir>/features/<encoder>-<pretext>``.
+
+    ``main_task`` and ``subtasks`` for the data config are read from the
+    merged aggregator config so the two sides cannot drift.
     """
     parser = argparse.ArgumentParser(description="Train a slide-level aggregator.")
 
@@ -507,19 +535,59 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default="aggregator",
         help=(
             "Subdirectory of --config-dir holding the partial aggregator "
-            "YAMLs (base-/subtask-/variant-/add-on-/encoder-/pretext-/"
-            "optimizer-/lr-scheduler-)."
+            "YAMLs (base-/subtask-/variant-/add-on-/encoder-/pretext-). "
+            "Each `base-{base}.yaml` extends ../optimizers.yaml for the "
+            "shared optimizer + LR-scheduler recipe."
         ),
     )
     parser.add_argument(
-        "--training-config",
-        default="training-aggregator-test.yaml",
-        help="Filename of the training YAML config under --config-dir.",
+        "--dataset-config-subdir",
+        default="dataset",
+        help=(
+            "Subdirectory of --config-dir holding the partial dataset "
+            "YAMLs (base-/flavor-)."
+        ),
     )
     parser.add_argument(
-        "--data-config",
-        default="slide_dataset-TCGA-BRCA-test.yaml",
-        help="Filename of the data YAML config under --config-dir.",
+        "--trainer-config-subdir",
+        default="trainer",
+        help="Subdirectory of --config-dir holding the partial trainer YAMLs.",
+    )
+    parser.add_argument(
+        "--trainer",
+        default="test",
+        choices=["default", "test", "cpu"],
+        help=(
+            "Trainer recipe; selects `base-{name}.yaml` under the trainer "
+            "partial dir. Default is `test` for safe interactive runs; pass "
+            "`default` for the production GPU/DDP recipe."
+        ),
+    )
+    parser.add_argument(
+        "--dataset",
+        default="tcga-brca-test",
+        help=(
+            "Dataset base token; selects `base-{token}.yaml` under the "
+            "dataset partial dir (e.g. 'tcga-brca', 'tcga-brca-test')."
+        ),
+    )
+    parser.add_argument(
+        "--precomputed",
+        action="store_true",
+        help=(
+            "Use precomputed tile features (TCGAFeatureDataset) instead of "
+            "extracting tiles on the fly (TCGASlideDataset). When set, "
+            "`features_dir` is derived from --features-dir or defaults to "
+            "<root_dir>/features/<encoder>-<pretext>."
+        ),
+    )
+    parser.add_argument(
+        "--features-dir",
+        default=None,
+        help=(
+            "Explicit features directory (only used with --precomputed). "
+            "Overrides the default <root_dir>/features/<encoder>-<pretext>."
+        ),
     )
     parser.add_argument(
         "--base",
@@ -529,11 +597,17 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--subtask",
-        default=None,
-        choices=["sbs", "dbs", "id", "cnv"],
+        default=[],
+        nargs="*",
+        choices=["sbs", "dbs", "id", "cnv", "full"],
+        metavar="TOKEN",
         help=(
-            "Optional aggregator-level auxiliary subtask (COSMIC signature "
-            "regression). Only valid with `--base clam`. Omit for plain CLAM."
+            "Zero or more aggregator-level auxiliary subtasks (COSMIC signature "
+            "regression). Pass multiple tokens to stack heads, e.g. "
+            "`--subtask sbs dbs`. Pass `full` as a shorthand for all four "
+            "subtasks. The token order doesn't matter — the merge function "
+            "sorts alphabetically so any permutation of the same set yields "
+            "the same run name. Only valid with `--base clam`."
         ),
     )
     parser.add_argument(
@@ -566,29 +640,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         choices=["full", "hematoxylin", "jigmag", "magnification", "none"],
         help="Encoder pretext task; used to compose the aggregator checkpoint path.",
     )
-    parser.add_argument(
-        "--optimizer",
-        default="adamw",
-        choices=["adamw"],
-        help="Optimizer recipe; selects `optimizer-{name}.yaml` under the partial dir.",
-    )
-    parser.add_argument(
-        "--lr-scheduler",
-        default="cosine",
-        choices=["cosine"],
-        help=(
-            "LR scheduler recipe; selects `lr-scheduler-{name}.yaml` under the "
-            "partial dir."
-        ),
-    )
 
     return parser
 
 
 def train(
     model_config: dict[str, Any],
-    dataset_config_path: str,
-    training_config_path: str,
+    dataset_config: dict[str, Any],
+    training_config: dict[str, Any],
     run_name: str,
     *,
     aggregator_config_dir: str,
@@ -597,25 +656,21 @@ def train(
 
     ``model_config`` is the merged aggregator config produced by
     :func:`augur.utils.config.load_aggregator_config` from the
-    base/subtask/variant/add-on/encoder/pretext (plus optimizer +
-    lr-scheduler) partials under ``aggregator_config_dir``. Relative
-    ``tile_model_config`` paths inside the merged dict, if any, are
-    resolved against ``aggregator_config_dir``.
+    base/subtask/variant/add-on/encoder/pretext partials under
+    ``aggregator_config_dir`` (the base partial pulls in the shared
+    optimizer + LR-scheduler recipe via its ``extends`` directive).
+    Relative ``tile_model_config`` paths inside the merged dict, if any,
+    are resolved against ``aggregator_config_dir``.
+
+    ``dataset_config`` is the merged datamodule config produced by
+    :func:`augur.utils.config.load_dataset_config`. Its ``main_task``
+    and ``subtasks`` must already match the aggregator config (the CLI
+    derives them from ``model_config`` to enforce this).
+
+    ``training_config`` is the merged trainer recipe produced by
+    :func:`augur.utils.config.load_trainer_config`.
     """
-    resolved_dataset_config_path = os.path.abspath(dataset_config_path)
-    resolved_training_config_path = os.path.abspath(training_config_path)
     resolved_aggregator_config_dir = os.path.abspath(aggregator_config_dir)
-
-    if not os.path.exists(resolved_dataset_config_path):
-        raise FileNotFoundError(
-            f"Dataset config not found: {resolved_dataset_config_path}"
-        )
-    if not os.path.exists(resolved_training_config_path):
-        raise FileNotFoundError(
-            f"Training config not found: {resolved_training_config_path}"
-        )
-
-    training_config = load_yaml_config(resolved_training_config_path)
     accelerator, devices = _resolve_accelerator_and_devices(training_config)
     max_epochs = int(
         _get_training_value(
@@ -659,8 +714,7 @@ def train(
 
     logger.info("Starting training run '%s'", run_name)
     logger.info("Aggregator config dir: %s", resolved_aggregator_config_dir)
-    logger.info("Dataset config: %s", resolved_dataset_config_path)
-    logger.info("Training config: %s", resolved_training_config_path)
+    logger.info("Datamodule: %s", dataset_config.get("name"))
 
     checkpoint_dir = os.path.join(default_root_dir, "checkpoints", run_name)
     resume_from = _resolve_resume_checkpoint_path(
@@ -676,7 +730,7 @@ def train(
         base_dir=resolved_aggregator_config_dir,
         resume_checkpoint_path=resume_from,
     )
-    datamodule = _load_dataset(resolved_dataset_config_path, logger)
+    datamodule = _load_dataset(dataset_config, logger)
     _warn_on_task_mismatch(
         model=model,
         datamodule=datamodule,
@@ -793,37 +847,65 @@ def main() -> None:
     """CLI entrypoint for slide-aggregator training."""
     args = _build_arg_parser().parse_args()
 
-    training_config_path = os.path.join(args.config_dir, args.training_config)
-    data_config_path = os.path.join(args.config_dir, args.data_config)
     aggregator_config_dir = os.path.join(
         args.config_dir, args.aggregator_config_subdir
     )
+    dataset_config_dir = os.path.join(args.config_dir, args.dataset_config_subdir)
+    trainer_config_dir = os.path.join(args.config_dir, args.trainer_config_subdir)
 
     model_config = load_aggregator_config(
         aggregator_config_dir,
         base=args.base,
         variant=args.variant,
         add_on=args.add_on,
-        subtask=args.subtask,
+        subtasks=args.subtask,
         encoder=args.encoder,
         pretext=args.pretext,
-        optimizer=args.optimizer,
-        lr_scheduler=args.lr_scheduler,
     )
 
-    run_name_tokens = [args.base]
-    if args.subtask is not None:
-        run_name_tokens.append(args.subtask)
-    run_name_tokens.append(args.variant)
-    if args.add_on is not None:
-        run_name_tokens.append(args.add_on)
-    run_name_tokens.extend([args.encoder, args.pretext])
-    full_model_name = "-".join(run_name_tokens)
+    # Pull main_task + subtasks (full task names) from the merged aggregator
+    # config so the datamodule cannot drift from what the model declares.
+    model_params = model_config.get("params", {})
+    if not isinstance(model_params, dict):
+        raise TypeError("Aggregator config 'params' must be a dict.")
+    main_task = model_params.get("main_task")
+    if not isinstance(main_task, str) or not main_task:
+        raise ValueError("Aggregator config must declare 'params.main_task'.")
+    model_subtasks = model_params.get("subtasks") or []
+
+    dataset_config = load_dataset_config(
+        dataset_config_dir,
+        base=args.dataset,
+        flavor="feature" if args.precomputed else "slide",
+        main_task=main_task,
+        subtasks=model_subtasks,
+        encoder=args.encoder,
+        pretext=args.pretext,
+        features_dir=args.features_dir,
+    )
+
+    training_config = load_trainer_config(
+        trainer_config_dir,
+        trainer=args.trainer,
+    )
+
+    # Derive the run name from the merged config's ``checkpoint_path`` so it
+    # stays in lockstep with the merge function's canonicalization (subtask
+    # alphabetical sort, ``full`` shorthand collapsing). This makes
+    # ``--subtask sbs dbs id cnv`` and ``--subtask full`` produce the same
+    # run_name regardless of argv order.
+    checkpoint_path = model_config.get("checkpoint_path", "")
+    if not isinstance(checkpoint_path, str) or not checkpoint_path:
+        raise ValueError(
+            "Merged aggregator config must declare a non-empty "
+            "'checkpoint_path' string."
+        )
+    full_model_name = os.path.splitext(os.path.basename(checkpoint_path))[0]
 
     train(
         model_config=model_config,
-        dataset_config_path=data_config_path,
-        training_config_path=training_config_path,
+        dataset_config=dataset_config,
+        training_config=training_config,
         run_name=full_model_name,
         aggregator_config_dir=aggregator_config_dir,
     )

@@ -22,7 +22,6 @@ from torchvision.models import (
 from torchvision.models.resnet import BasicBlock, Bottleneck, ResNet
 
 from augur.models.model_abc import ModelABC
-from augur.models.utils import get_lr_scheduler_from_config, get_optimizer_from_config
 
 _PRETRAINED_SPECS: dict[
     str,
@@ -284,22 +283,13 @@ class ResNetEncoder(ModelABC):
         if pretrained is not None and not isinstance(pretrained, str):
             raise ValueError("ResNetEncoder 'pretrained' must be a string or None.")
 
-        optimizer_factory, optimizer_kwargs = get_optimizer_from_config(
-            config.get("optimizer", None)
-        )
-        lr_scheduler_factory, lr_scheduler_kwargs, lr_scheduler_config = (
-            get_lr_scheduler_from_config(config.get("lr_scheduler", None))
-        )
+        # ResNetEncoder is a sub-component of TileModel; its optimizer
+        # config is owned by the parent and is ignored here.
 
         return ResNetEncoder(
             block=block,
             layers=layers,
             pretrained=pretrained,
-            optimizer_factory=optimizer_factory,
-            optimizer_kwargs=optimizer_kwargs,
-            lr_scheduler_factory=lr_scheduler_factory,
-            lr_scheduler_kwargs=lr_scheduler_kwargs,
-            lr_scheduler_config=lr_scheduler_config,
         )
 
     def forward(  # pylint: disable=arguments-differ
@@ -329,6 +319,15 @@ class ResNetEncoder(ModelABC):
         raise NotImplementedError(
             "ResNetEncoder is an encoder-only Lightning module. Override "
             "model_step() in a task-specific subclass to compute a loss."
+        )
+
+    def configure_optimizers(self: ResNetEncoder) -> None:
+        """Sub-component — its optimizer is owned by the parent TileModel."""
+        raise NotImplementedError(
+            "ResNetEncoder is an encoder sub-component, not a top-level "
+            "Lightning module. Its optimizer is configured by the parent "
+            "TileModel; train the TileModel (or another top-level model that "
+            "wraps ResNetEncoder) instead of this module directly."
         )
 
     def _extract_image_tensor(self: ResNetEncoder, batch: Any) -> Tensor:

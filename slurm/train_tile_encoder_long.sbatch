@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=long-hematoxylin
+#SBATCH --job-name=magnification
 #SBATCH --gres=gpu:2
 #SBATCH --partition=general
 #SBATCH --qos=long
@@ -7,8 +7,8 @@
 #SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
-#SBATCH --output=slurm/output/resnet50-hematoxylin-%j.out
-#SBATCH --error=slurm/output/resnet50-hematoxylin-%j.err
+#SBATCH --output=slurm/output/resnet50-magnification-%j.out
+#SBATCH --error=slurm/output/resnet50-magnification-%j.err
 
 set -eu
 
@@ -16,12 +16,20 @@ REPO="/tudelft.net/staff-umbrella/IMGEN"
 IMG="$REPO/containers/augur.sif"
 OUTDIR="$REPO/slurm/output"
 
-MODEL_NAME="resnet50"
-TASK_NAME="hematoxylin"
+# train_tile_encoder.py now composes its configs from the partial-merge
+# helpers in augur/utils/config.py. The four tokens below feed:
+#   ENCODER  → configs/tile-model/base-<ENCODER>.yaml
+#   PRETEXT  → configs/tile-model/pretext-<PRETEXT>-<ENCODER>.yaml
+#              (also propagated into the dataset's `tasks` list)
+#   DATASET  → configs/dataset/base-<DATASET>.yaml (+ flavor-tile.yaml)
+#   TRAINER  → configs/trainer/base-<TRAINER>.yaml
+# Edit the SBATCH --job-name / --output / --error above to match when
+# changing ENCODER or PRETEXT.
+ENCODER="resnet50"
+PRETEXT="magnification"
+DATASET="tcga-brca"
+TRAINER="default"
 
-MODEL_CFG="$REPO/configs/model-$MODEL_NAME-$TASK_NAME.yaml"
-DATA_CFG="$REPO/configs/tile_dataset-TCGA-BRCA-$TASK_NAME.yaml"
-TRAIN_CFG="$REPO/configs/training-$MODEL_NAME-$TASK_NAME.yaml"
 export PYTHONPATH="/work${PYTHONPATH:+:$PYTHONPATH}"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
@@ -49,9 +57,13 @@ fi
 
 # Pre-cache any HF Hub-backed encoder weights in a single process before srun
 # so both ranks see a fully populated cache and do not race on timm/HF filelocks.
-case "$MODEL_NAME" in
-  *gigapath*)
-    echo "Pre-caching $MODEL_NAME weights into the node-local HF cache ..."
+# Encoder → timm model id map mirrors configs/tile-model/base-<ENCODER>.yaml.
+case "$ENCODER" in
+  prov-gigapath) HF_MODEL_ID="hf_hub:prov-gigapath/prov-gigapath" ;;
+  *)             HF_MODEL_ID="" ;;
+esac
+if [ -n "$HF_MODEL_ID" ]; then
+    echo "Pre-caching $HF_MODEL_ID into the node-local HF cache ..."
     apptainer exec \
         -B "$REPO:/work" \
         -B "$tmpdir:/tmp" \
@@ -63,15 +75,19 @@ from dotenv import load_dotenv
 load_dotenv()
 import timm
 timm.create_model(
-    'hf_hub:resnet50/resnet50',
+    '$HF_MODEL_ID',
     pretrained=True,
     num_classes=0,
     global_pool='',
 )
-print('Pre-cached resnet50.')
+print('Pre-cached $HF_MODEL_ID.')
 "
-    ;;
-esac
+fi
+
+echo "encoder: $ENCODER"
+echo "pretext: $PRETEXT"
+echo "dataset: $DATASET"
+echo "trainer: $TRAINER"
 
 # Run on compute node via srun; execute inside container
 srun apptainer exec \
@@ -87,4 +103,7 @@ srun apptainer exec \
     --pwd /work \
     "$IMG" \
     /opt/conda/envs/augur/bin/python scripts/model_training/train_tile_encoder.py \
-    --model-config "$MODEL_CFG" --dataset-config "$DATA_CFG" --training-config "$TRAIN_CFG"
+        --encoder "$ENCODER" \
+        --pretext "$PRETEXT" \
+        --dataset "$DATASET" \
+        --trainer "$TRAINER"

@@ -1,0 +1,16 @@
+params:
+  decoders:
+    hematoxylin:
+      name: DPTDecoder
+      params:
+        output_channels: 1
+        embed_dim: 1536
+        feature_channels: 256
+        head_channels: 128
+        patch_size: 16
+        num_prefix_tokens: 1
+        dropout: 0.25
+        upsample_mode: bilinear
+        align_corners: true
+  task_weights:
+    hematoxylin: 1.0

@@ -4,6 +4,6 @@
 params:
   subtasks: ["dbs_regression"]
   output_dims:
-    dbs_regression: 11
+    dbs_regression: 22
   task_weights:
     dbs_regression: 1.0

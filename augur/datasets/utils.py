@@ -530,7 +530,7 @@ def compute_tissue_mask(
         thumbnail.astype(np.float32).max(axis=2)
         - thumbnail.astype(np.float32).min(axis=2)
     ) / 255.0
-    return (intensity < white_threshold) & (chroma > 0.001)
+    return (intensity < white_threshold) & (chroma > 0.01)
 
 
 def as_image_tensor(

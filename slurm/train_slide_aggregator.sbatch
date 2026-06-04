@@ -7,8 +7,26 @@
 #SBATCH --time=1-12:00:00
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
-#SBATCH --output=slurm/output/mil-attention-full-%j.out
-#SBATCH --error=slurm/output/mil-attention-full-%j.err
+#SBATCH --output=slurm/output/mil-attention-resnet50-full-%j.out
+#SBATCH --error=slurm/output/mil-attention-resnet50-full-%j.err
+
+# train_slide_aggregator.py composes its configs from the partial-merge
+# helpers in augur/utils/config.py. The tokens below feed:
+#   BASE     → configs/aggregator/base-<BASE>.yaml
+#   VARIANT  → configs/aggregator/variant-<VARIANT>.yaml
+#   ADD_ON   → configs/aggregator/add-on-<ADD_ON>.yaml          (optional)
+#   SUBTASKS → configs/aggregator/subtask-<TOKEN>.yaml ...      (optional;
+#              only valid with BASE=clam; pass multiple space-separated
+#              tokens, e.g. "sbs dbs")
+#   ENCODER  → configs/aggregator/encoder-<ENCODER>.yaml
+#   PRETEXT  → configs/aggregator/pretext-<PRETEXT>.yaml
+#   DATASET  → configs/dataset/base-<DATASET>.yaml
+#              (+ flavor-feature.yaml when PRECOMPUTED=1)
+#   TRAINER  → configs/trainer/base-<TRAINER>.yaml
+# The run name (and therefore checkpoint / log filename) is
+#   <BASE>[-<SUBTASKS>...]-<VARIANT>[-<ADD_ON>]-<ENCODER>-<PRETEXT>
+# Edit the SBATCH --job-name / --output / --error above to match when
+# changing any of these tokens.
 
 set -eu
 
@@ -17,11 +35,28 @@ IMG="$REPO/containers/augur.sif"
 OUTDIR="$REPO/slurm/output"
 
 CONFIG_DIR="$REPO/configs"
-TRAINING_CFG="training-aggregator.yaml"
-TILE_PRETEXT="full"
-DATA_CFG="feature_dataset-TCGA-BRCA-archive-$TILE_PRETEXT.yaml"
-AGGREGATOR_NAME="mil-attention"
-ENCODER_ARCHITECTURE="resnet50"
+
+# --- Aggregator architecture --------------------------------------------------
+BASE="mil"           # clam | mil
+VARIANT="attention"  # sb | mb (clam) ; mean | max | attention (mil)
+ADD_ON=""            # "" | gated   (only with attention-based variants)
+SUBTASKS=""          # "" or e.g. "sbs" or "sbs dbs"  (only with BASE=clam)
+
+# --- Encoder used to extract features (must match the precompute job) --------
+ENCODER="resnet50"
+PRETEXT="full"
+
+# --- Dataset + trainer recipe ------------------------------------------------
+DATASET="tcga-brca"
+TRAINER="default"    # default (production GPU/DDP) | test (fast-dev)
+
+# --- Feature cache -----------------------------------------------------------
+# 1 → load precomputed features (TCGAFeatureDataset); 0 → encode on the fly.
+PRECOMPUTED=1
+# When PRECOMPUTED=1 and FEATURES_DIR is empty, the python script derives
+# `<root_dir>/features/<ENCODER>-<PRETEXT>` automatically. Set explicitly
+# below to point at the archived cache instead.
+FEATURES_DIR="$REPO/data/TCGA-BRCA/features/archive-${ENCODER}-${PRETEXT}"
 
 export PYTHONPATH="/work${PYTHONPATH:+:$PYTHONPATH}"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
@@ -32,10 +67,31 @@ mkdir -p "$tmpdir"
 clean_up() { rm -rf "$tmpdir"; }
 trap clean_up EXIT
 
-echo "training_config: $TRAINING_CFG"
-echo "data_config:     $DATA_CFG"
-echo "aggregator:      $AGGREGATOR_NAME / $ENCODER_ARCHITECTURE / $TILE_PRETEXT"
+echo "base:       $BASE"
+echo "variant:    $VARIANT"
+echo "add_on:     ${ADD_ON:-<none>}"
+echo "subtasks:   ${SUBTASKS:-<none>}"
+echo "encoder:    $ENCODER"
+echo "pretext:    $PRETEXT"
+echo "dataset:    $DATASET"
+echo "trainer:    $TRAINER"
+echo "precomputed: $PRECOMPUTED"
+if [ "$PRECOMPUTED" = "1" ] && [ -n "$FEATURES_DIR" ]; then
+    echo "features_dir: $FEATURES_DIR"
+fi
 
+# Build the optional CLI flags. `${VAR:+--flag "$VAR"}` expands to nothing
+# when VAR is empty, so omitted axes don't introduce stray empty arguments
+# that argparse would choke on.
+#   - SUBTASKS is nargs='*': pass the tokens unquoted so word-splitting
+#     yields one argv entry per token.
+#   - PRECOMPUTED is a boolean flag (no value).
+PRECOMPUTED_FLAG=""
+if [ "$PRECOMPUTED" = "1" ]; then
+    PRECOMPUTED_FLAG="--precomputed"
+fi
+
+# shellcheck disable=SC2086
 srun apptainer exec \
     --nv \
     -B "$REPO:/work" \
@@ -51,9 +107,14 @@ srun apptainer exec \
         --nnodes=1 \
         --nproc_per_node=2 \
         scripts/model_training/train_slide_aggregator.py \
-        --config-dir "$CONFIG_DIR" \
-        --training-config "$TRAINING_CFG" \
-        --data-config "$DATA_CFG" \
-        --aggregator-name "$AGGREGATOR_NAME" \
-        --encoder-architecture "$ENCODER_ARCHITECTURE" \
-        --tile-pretext "$TILE_PRETEXT"
+            --config-dir "$CONFIG_DIR" \
+            --base "$BASE" \
+            --variant "$VARIANT" \
+            ${ADD_ON:+--add-on "$ADD_ON"} \
+            ${SUBTASKS:+--subtask $SUBTASKS} \
+            --encoder "$ENCODER" \
+            --pretext "$PRETEXT" \
+            --dataset "$DATASET" \
+            --trainer "$TRAINER" \
+            $PRECOMPUTED_FLAG \
+            ${FEATURES_DIR:+--features-dir "$FEATURES_DIR"}

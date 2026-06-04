@@ -11,7 +11,6 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
 from augur.models.model_abc import ModelABC
-from augur.models.utils import get_lr_scheduler_from_config, get_optimizer_from_config
 
 
 class _DoubleConv(nn.Module):
@@ -238,12 +237,8 @@ class UNetDecoder(ModelABC):
         if not isinstance(align_corners, bool):
             raise ValueError(f"align_corners must be a boolean. Got: {align_corners}")
 
-        optimizer_factory, optimizer_kwargs = get_optimizer_from_config(
-            config.get("optimizer", None)
-        )
-        lr_scheduler_factory, lr_scheduler_kwargs, lr_scheduler_config = (
-            get_lr_scheduler_from_config(config.get("lr_scheduler", None))
-        )
+        # UNetDecoder is a sub-component of TileModel; its optimizer config
+        # is owned by the parent and is ignored here.
 
         return UNetDecoder(
             output_channels=output_channels,
@@ -252,11 +247,6 @@ class UNetDecoder(ModelABC):
             dropout=dropout,
             upsample_mode=upsample_mode,
             align_corners=align_corners,
-            optimizer_factory=optimizer_factory,
-            optimizer_kwargs=optimizer_kwargs,
-            lr_scheduler_factory=lr_scheduler_factory,
-            lr_scheduler_kwargs=lr_scheduler_kwargs,
-            lr_scheduler_config=lr_scheduler_config,
         )
 
     def forward(  # pylint: disable=arguments-differ
@@ -303,6 +293,15 @@ class UNetDecoder(ModelABC):
         raise NotImplementedError(
             "UNetDecoder is a decoder-only Lightning module. Override "
             "model_step() in a task-specific subclass to compute a loss."
+        )
+
+    def configure_optimizers(self: UNetDecoder) -> None:
+        """Sub-component — its optimizer is owned by the parent TileModel."""
+        raise NotImplementedError(
+            "UNetDecoder is a decoder sub-component, not a top-level "
+            "Lightning module. Its optimizer is configured by the parent "
+            "TileModel; train the TileModel (or another top-level model that "
+            "wraps UNetDecoder) instead of this module directly."
         )
 
     def _extract_feature_maps(

@@ -2,9 +2,16 @@
 
 Walks every labelled slide in the configured TCGA cohort, enumerates *all*
 tissue tile centers (not the per-epoch sub-sample), encodes every tile through
-the frozen tile encoder defined by ``--model-config``, and writes a per-slide
-``<slide_id>.pt`` containing the ``(K, D)`` feature tensor plus tile-center
-coordinates.
+the frozen tile encoder selected by ``--encoder`` + ``--pretext``, and writes
+a per-slide ``<slide_id>.pt`` containing the ``(K, D)`` feature tensor plus
+tile-center coordinates.
+
+The tile-model config is composed by
+:func:`augur.utils.config.load_tile_model_config` from the same partial dir
+that ``train_tile_encoder.py`` uses, so the encoder Python class, its
+checkpoint path, and the cache directory are kept in lockstep with the
+training-time configuration. The slide dataset is composed by
+:func:`augur.utils.config.load_dataset_config` with ``flavor='slide'``.
 
 Once this cache exists, the slide-level aggregator can train on cached
 features instead of re-encoding tiles every epoch. The aggregator backbones
@@ -14,11 +21,14 @@ features instead of re-encoding tiles every epoch. The aggregator backbones
 Typical invocation::
 
     python scripts/model_training/precompute_tile_features.py \\
-        --config-dir configs \\
-        --model-config model-resnet50-full.yaml \\
-        --data-config slide_dataset-TCGA-BRCA.yaml \\
-        --output-dir data/TCGA-BRCA/features/resnet50-full \\
+        --encoder resnet50 --pretext full \\
+        --dataset tcga-brca \\
         --device cuda --chunk-size 64
+
+``--output-dir`` defaults to
+``<dataset root_dir>/features/<checkpoint_stem>`` so it matches the path the
+aggregator's feature flavor derives via
+``flavor-feature.yaml`` (e.g. ``data/TCGA-BRCA/features/resnet50-full``).
 
 The output layout is::
 
@@ -50,7 +60,7 @@ from augur.datasets.utils import (
     read_tile_from_record,
 )
 from augur.models.tile_level.tile_model import TileModel
-from augur.utils.config import load_yaml_config
+from augur.utils.config import load_dataset_config, load_tile_model_config
 from augur.utils.logger import setup_logger
 
 # ----------------------------------------------------------------------------
@@ -68,49 +78,20 @@ def _setup_logger_for_run(log_dir: str) -> logging.Logger:
 # ----------------------------------------------------------------------------
 
 
-def _resolve_relative_config_path(value: Any, *, config_dir: str) -> Any:
-    """Resolve a config-relative path against ``config_dir``."""
-    if not isinstance(value, str):
-        return value
-    if os.path.isabs(value):
-        return value
-    candidate = os.path.join(config_dir, value)
-    return os.path.abspath(candidate) if os.path.exists(candidate) else value
-
-
-def _resolve_tile_model_paths(
-    tile_model_config: dict[str, Any], *, config_path: str
-) -> dict[str, Any]:
-    """Resolve nested ``encoder_config`` / ``decoders_config`` paths."""
-    resolved = dict(tile_model_config)
-    config_dir = os.path.dirname(os.path.abspath(config_path))
-    params = resolved.get("params", {})
-    if not isinstance(params, dict):
-        return resolved
-
-    resolved_params = dict(params)
-    if "encoder_config" in resolved_params:
-        resolved_params["encoder_config"] = _resolve_relative_config_path(
-            resolved_params["encoder_config"], config_dir=config_dir
-        )
-    decoders_config = resolved_params.get("decoders_config")
-    if isinstance(decoders_config, dict):
-        resolved_params["decoders_config"] = {
-            name: _resolve_relative_config_path(spec, config_dir=config_dir)
-            for name, spec in decoders_config.items()
-        }
-    resolved["params"] = resolved_params
-    return resolved
-
-
 def _load_tile_encoder(
-    model_config_path: str,
+    tile_model_config: dict[str, Any],
     *,
     device: torch.device,
     dtype: torch.dtype,
     logger: logging.Logger,
 ) -> tuple[nn.Module, str, int]:
-    """Load the encoder from a tile-model YAML and return ``(encoder, name, D)``.
+    """Build the encoder from a merged tile-model config and return ``(encoder, name, D)``.
+
+    ``tile_model_config`` is the dict produced by
+    :func:`augur.utils.config.load_tile_model_config` — already merged from
+    ``base-{encoder}.yaml`` + the requested ``pretext-…`` partials, with the
+    encoder / decoders inlined as dicts and ``checkpoint_path`` set to
+    ``checkpoints/{encoder}-{pretext_tag}.pth``.
 
     The encoder is moved to ``device`` *and* cast to ``dtype``. Casting the
     weights matters because :func:`_encode_tile_bag` casts each input chunk
@@ -118,27 +99,15 @@ def _load_tile_encoder(
     feeding fp16 input triggers a ``HalfTensor`` vs ``FloatTensor`` mismatch
     inside the first conv.
 
-    The model YAML follows the same shape as the one referenced by aggregator
-    configs via ``tile_model_config`` (e.g. ``model-resnet50-full.yaml``):
-
-    .. code-block:: yaml
-
-        params:
-          encoder_config: encoder-resnet50.yaml
-          decoders_config: {...}
-        checkpoint_path: checkpoints/resnet50-full.pth
-
     The decoders are instantiated by ``TileModel.from_config`` but ignored
     here — only the encoder is retained.
     """
-    tile_model_cfg = _resolve_tile_model_paths(
-        load_yaml_config(model_config_path),
-        config_path=model_config_path,
-    )
-    tile_model_params = tile_model_cfg.get("params", tile_model_cfg)
+    tile_model_params = tile_model_config.get("params", tile_model_config)
+    if not isinstance(tile_model_params, dict):
+        raise TypeError("Tile-model config 'params' must be a dict.")
     tile_model = TileModel.from_config(tile_model_params)
 
-    checkpoint_path = tile_model_cfg.get("checkpoint_path", None)
+    checkpoint_path = tile_model_config.get("checkpoint_path", None)
     if not isinstance(checkpoint_path, str):
         raise ValueError(
             f"tile-model config must include a 'checkpoint_path' string. "
@@ -469,17 +438,20 @@ def _append_manifest_row(manifest_path: str, row: dict[str, Any]) -> None:
 
 
 def _instantiate_datamodule(
-    data_config_path: str, logger: logging.Logger
+    dataset_config: dict[str, Any], logger: logging.Logger
 ) -> TCGASlideDataset:
-    """Build the TCGASlideDataset datamodule from its YAML config."""
-    config = load_yaml_config(data_config_path)
-    datamodule = get_dataset_from_config(config)
+    """Build the TCGASlideDataset datamodule from a merged dataset config."""
+    datamodule = get_dataset_from_config(dataset_config)
     if not isinstance(datamodule, TCGASlideDataset):
         raise TypeError(
             "Precompute requires a TCGASlideDataset datamodule. "
             f"Got: {type(datamodule).__name__}"
         )
-    logger.info("Loaded datamodule from %s", os.path.abspath(data_config_path))
+    logger.info(
+        "Instantiated %s with root_dir=%s",
+        type(datamodule).__name__,
+        getattr(datamodule, "root_dir", None),
+    )
     return datamodule
 
 
@@ -516,16 +488,6 @@ def _collect_all_slide_records(
 # ----------------------------------------------------------------------------
 
 
-def _resolve_config_path(config_dir: str, name: str) -> str:
-    """Resolve a config name against ``--config-dir`` or accept an absolute path."""
-    if os.path.isabs(name) and os.path.isfile(name):
-        return name
-    candidate = os.path.join(config_dir, name)
-    if not os.path.isfile(candidate):
-        raise FileNotFoundError(f"Config not found: {candidate}")
-    return os.path.abspath(candidate)
-
-
 def _resolve_device(name: str) -> torch.device:
     if name == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -550,22 +512,64 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config-dir",
         default="configs",
-        help="Directory holding the YAML configs.",
+        help="Directory containing the partial-config subdirectories.",
     )
     parser.add_argument(
-        "--model-config",
-        required=True,
-        help="Tile-model YAML name (e.g. model-resnet50-full.yaml).",
+        "--tile-model-config-subdir",
+        default="tile-model",
+        help="Subdirectory of --config-dir holding the partial tile-model YAMLs.",
     )
     parser.add_argument(
-        "--data-config",
-        required=True,
-        help="Slide-dataset YAML name (e.g. slide_dataset-TCGA-BRCA.yaml).",
+        "--dataset-config-subdir",
+        default="dataset",
+        help="Subdirectory of --config-dir holding the partial dataset YAMLs.",
+    )
+    parser.add_argument(
+        "--encoder",
+        default="resnet50",
+        choices=["resnet50", "prov-gigapath"],
+        help="Tile encoder backbone (mirrors train_tile_encoder.py).",
+    )
+    parser.add_argument(
+        "--pretext",
+        default=[],
+        nargs="*",
+        choices=["full", "none", "hematoxylin", "jigmag", "magnification"],
+        metavar="TOKEN",
+        help=(
+            "Zero or more encoder pretext tasks used to compose the tile-model "
+            "checkpoint stem (e.g. `--pretext hematoxylin jigmag` loads "
+            "`checkpoints/<encoder>-hematoxylin-jigmag.pth`). `full` is "
+            "shorthand for all three; `none` (or empty) selects the "
+            "tissue-segmentation-only checkpoint."
+        ),
+    )
+    parser.add_argument(
+        "--dataset",
+        default="tcga-brca",
+        help=(
+            "Dataset base token (e.g. 'tcga-brca', 'tcga-brca-test'); "
+            "selects `base-{token}.yaml` under --dataset-config-subdir. "
+            "Always loaded with `flavor='slide'`."
+        ),
+    )
+    parser.add_argument(
+        "--main-task",
+        default="subtyping",
+        help=(
+            "Main task forwarded into the dataset config (used to load main "
+            "labels). The encoder itself doesn't read it, but the slide "
+            "datamodule requires it."
+        ),
     )
     parser.add_argument(
         "--output-dir",
-        required=True,
-        help="Directory where per-slide .pt feature files will be written.",
+        default=None,
+        help=(
+            "Directory where per-slide .pt feature files will be written. "
+            "Defaults to `<dataset root_dir>/features/<checkpoint_stem>`, "
+            "matching the layout the aggregator's feature flavor expects."
+        ),
     )
     parser.add_argument(
         "--device", default="auto", help="Device: auto | cuda | cuda:0 | cpu."
@@ -612,18 +616,53 @@ def main() -> None:
     """Main entry point."""
     args = parse_args()
 
-    os.makedirs(args.output_dir, exist_ok=True)
     os.makedirs(args.log_dir, exist_ok=True)
     logger = _setup_logger_for_run(args.log_dir)
+
+    tile_model_config_dir = os.path.join(args.config_dir, args.tile_model_config_subdir)
+    dataset_config_dir = os.path.join(args.config_dir, args.dataset_config_subdir)
+
+    tile_model_config = load_tile_model_config(
+        tile_model_config_dir,
+        encoder=args.encoder,
+        pretexts=args.pretext,
+    )
+    dataset_config = load_dataset_config(
+        dataset_config_dir,
+        base=args.dataset,
+        flavor="slide",
+        main_task=args.main_task,
+    )
+
+    # Default --output-dir mirrors flavor-feature.yaml's
+    # `<root_dir>/features/<encoder>-<pretext_tag>` so the aggregator's
+    # feature flavor will pick this cache up automatically.
+    if args.output_dir is None:
+        root_dir = dataset_config.get("params", {}).get("root_dir")
+        if not isinstance(root_dir, str) or not root_dir:
+            raise ValueError(
+                "Dataset config must declare 'params.root_dir' before "
+                "--output-dir can be derived."
+            )
+        checkpoint_path = tile_model_config.get("checkpoint_path")
+        if not isinstance(checkpoint_path, str) or not checkpoint_path:
+            raise ValueError(
+                "Tile-model config must declare 'checkpoint_path' before "
+                "--output-dir can be derived."
+            )
+        checkpoint_stem = os.path.splitext(os.path.basename(checkpoint_path))[0]
+        args.output_dir = os.path.join(
+            root_dir.rstrip("/"), "features", checkpoint_stem
+        )
+
+    os.makedirs(args.output_dir, exist_ok=True)
     manifest_path = os.path.join(args.output_dir, "_manifest.tsv")
 
-    model_config_path = _resolve_config_path(args.config_dir, args.model_config)
-    data_config_path = _resolve_config_path(args.config_dir, args.data_config)
     device = _resolve_device(args.device)
     dtype = _resolve_dtype(args.precision)
 
-    logger.info("model_config=%s", model_config_path)
-    logger.info("data_config=%s", data_config_path)
+    logger.info("tile_model=%s pretexts=%s", args.encoder, args.pretext or ["none"])
+    logger.info("dataset=%s (base-%s.yaml)", dataset_config_dir, args.dataset)
     logger.info("output_dir=%s", os.path.abspath(args.output_dir))
     logger.info(
         "device=%s precision=%s chunk_size=%d",
@@ -633,10 +672,10 @@ def main() -> None:
     )
 
     encoder, encoder_name, enc_dim = _load_tile_encoder(
-        model_config_path, device=device, dtype=dtype, logger=logger
+        tile_model_config, device=device, dtype=dtype, logger=logger
     )
 
-    datamodule = _instantiate_datamodule(data_config_path, logger=logger)
+    datamodule = _instantiate_datamodule(dataset_config, logger=logger)
     records, centers_by_slide_id = _collect_all_slide_records(datamodule)
 
     # Replay the slide-dataset's tile-extraction params so the cache matches
