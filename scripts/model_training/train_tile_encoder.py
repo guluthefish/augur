@@ -17,7 +17,11 @@ from torch.nn.parameter import UninitializedParameter
 from augur.datasets.dataset_abc import DatasetABC
 from augur.datasets.factory import get_dataset_from_config
 from augur.models.tile_level.tile_model import TileModel
-from augur.utils.config import load_yaml_config
+from augur.utils.config import (
+    load_dataset_config,
+    load_tile_model_config,
+    load_trainer_config,
+)
 from augur.utils.logger import setup_logger
 
 mp.set_sharing_strategy("file_system")
@@ -143,7 +147,6 @@ def _warn_on_task_mismatch(
     model: TileModel,
     datamodule: DatasetABC,
     logger: logging.Logger,
-    dataset_config_path: str,
 ) -> None:
     """Warn when the datamodule is configured with tasks the model will ignore."""
     dataset_tasks_value = getattr(datamodule, "tasks", None)
@@ -164,32 +167,14 @@ def _warn_on_task_mismatch(
         )
 
     extra_dataset_tasks = sorted(set(dataset_tasks).difference(model_tasks))
-    if not extra_dataset_tasks:
-        return
-
-    config_dir = os.path.dirname(os.path.abspath(dataset_config_path))
-    primary_tasks = [
-        task_name for task_name in model_tasks if task_name != "tissue_segmentation"
-    ]
-    suggested_config_path: str | None = None
-    if len(primary_tasks) == 1:
-        candidate_path = os.path.join(
-            config_dir, f"tile_dataset-TCGA-BRCA-{primary_tasks[0]}.yaml"
+    if extra_dataset_tasks:
+        logger.warning(
+            "Datamodule includes task(s) with no matching model decoder: %s. "
+            "These extra tasks still incur data setup work and can make distributed "
+            "startup much slower. Pass `--pretext` with the same tokens you used "
+            "for the model to keep the two sides aligned.",
+            extra_dataset_tasks,
         )
-        if os.path.exists(candidate_path):
-            suggested_config_path = os.path.abspath(candidate_path)
-
-    suggestion = ""
-    if suggested_config_path is not None:
-        suggestion = f" Prefer using dataset config {suggested_config_path}."
-
-    logger.warning(
-        "Datamodule includes task(s) with no matching model decoder: %s. "
-        "These extra tasks still incur data setup work and can make distributed "
-        "startup much slower.%s",
-        extra_dataset_tasks,
-        suggestion,
-    )
 
 
 def _extract_state_dict(checkpoint: Any) -> dict[str, Any]:
@@ -274,15 +259,22 @@ def _resolve_resume_checkpoint_path(
 
 
 def _create_model(
-    config_path: str,
+    model_config: dict[str, Any],
     logger: logging.Logger,
     *,
+    base_dir: str,
     resume_checkpoint_path: str | None = None,
 ) -> TileModel:
-    """Create a ``TileModel`` from a YAML config and optional checkpoint."""
+    """Create a ``TileModel`` from a merged config dict and optional checkpoint.
+
+    ``base_dir`` is the directory used to resolve any relative
+    ``encoder``/``decoders`` path strings appearing inside the merged
+    config. New partial-merged configs inline these dicts, so the
+    resolver is effectively a no-op there.
+    """
     config = _resolve_model_component_paths(
-        load_yaml_config(config_path),
-        config_path=config_path,
+        model_config,
+        config_path=os.path.join(base_dir, "_inline_.yaml"),
     )
     params = config.get("params", {})
     if not isinstance(params, dict):
@@ -318,11 +310,14 @@ def _create_model(
     return model
 
 
-def _load_dataset(config_path: str, logger: logging.Logger) -> DatasetABC:
-    """Instantiate the dataset datamodule from a YAML config."""
-    config = load_yaml_config(config_path)
-    dataset = get_dataset_from_config(config)
-    logger.info("Loaded datamodule from %s", os.path.abspath(config_path))
+def _load_dataset(dataset_config: dict[str, Any], logger: logging.Logger) -> DatasetABC:
+    """Instantiate the dataset datamodule from a merged config dict."""
+    dataset = get_dataset_from_config(dataset_config)
+    logger.info(
+        "Instantiated datamodule %s tasks=%s",
+        type(dataset).__name__,
+        list(getattr(dataset, "tasks", []) or []),
+    )
     return dataset
 
 
@@ -422,27 +417,20 @@ def _build_checkpoint_callback(
 
 def train(
     *,
-    model_config_path: str,
-    dataset_config_path: str,
-    training_config_path: str,
+    model_config: dict[str, Any],
+    dataset_config: dict[str, Any],
+    training_config: dict[str, Any],
+    run_name: str,
+    tile_model_config_dir: str,
 ) -> tuple[Trainer, TileModel, DatasetABC]:
-    """Run training for a tile-level model."""
-    resolved_model_config_path = os.path.abspath(model_config_path)
-    resolved_dataset_config_path = os.path.abspath(dataset_config_path)
-    resolved_training_config_path = os.path.abspath(training_config_path)
+    """Run training for a tile-level model.
 
-    if not os.path.exists(resolved_model_config_path):
-        raise FileNotFoundError(f"Model config not found: {resolved_model_config_path}")
-    if not os.path.exists(resolved_dataset_config_path):
-        raise FileNotFoundError(
-            f"Dataset config not found: {resolved_dataset_config_path}"
-        )
-    if not os.path.exists(resolved_training_config_path):
-        raise FileNotFoundError(
-            f"Training config not found: {resolved_training_config_path}"
-        )
-
-    training_config = load_yaml_config(resolved_training_config_path)
+    All three configs are merged dicts produced by the partial-merge
+    helpers in :mod:`augur.utils.config`. ``tile_model_config_dir`` is
+    used to resolve any relative ``encoder``/``decoders`` paths inside
+    the model config (new partials inline them, so this is a no-op for
+    the standard flow).
+    """
     accelerator, devices = _resolve_accelerator_and_devices(training_config)
     max_epochs = int(
         _get_training_value(
@@ -461,11 +449,6 @@ def train(
             "default_root_dir",
             "outputs/model_training",
         )
-    )
-    run_name = _get_training_value(
-        training_config,
-        "run_name",
-        os.path.splitext(os.path.basename(resolved_model_config_path))[0],
     )
     log_every_n_steps = int(
         _get_training_value(training_config, "log_every_n_steps", 10)
@@ -490,9 +473,8 @@ def train(
     seed_everything(seed, workers=True)
 
     logger.info("Starting training run '%s'", run_name)
-    logger.info("Model config: %s", resolved_model_config_path)
-    logger.info("Dataset config: %s", resolved_dataset_config_path)
-    logger.info("Training config: %s", resolved_training_config_path)
+    logger.info("Model: %s", model_config.get("name"))
+    logger.info("Datamodule: %s", dataset_config.get("name"))
 
     checkpoint_dir = os.path.join(default_root_dir, "checkpoints", str(run_name))
     resume_from = _resolve_resume_checkpoint_path(
@@ -503,16 +485,16 @@ def train(
         logger.info("Resuming training from Lightning checkpoint %s", resume_from)
 
     model = _create_model(
-        resolved_model_config_path,
+        model_config,
         logger,
+        base_dir=os.path.abspath(tile_model_config_dir),
         resume_checkpoint_path=resume_from,
     )
-    datamodule = _load_dataset(resolved_dataset_config_path, logger)
+    datamodule = _load_dataset(dataset_config, logger)
     _warn_on_task_mismatch(
         model=model,
         datamodule=datamodule,
         logger=logger,
-        dataset_config_path=resolved_dataset_config_path,
     )
     _initialize_lazy_modules_from_dataloader(
         model,
@@ -582,7 +564,6 @@ def train(
             ckpt_path=test_ckpt_path,
         )
 
-    model_config = load_yaml_config(resolved_model_config_path)
     export_checkpoint_path = model_config.get("checkpoint_path")
     if export_checkpoint_path:
         if checkpoint_callback.best_model_path:
@@ -607,35 +588,144 @@ def train(
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
-    """Create the CLI parser for the training script."""
+    """Create the CLI parser for the training script.
+
+    All three configs (model / dataset / trainer) are composed via the
+    partial-merge helpers in :mod:`augur.utils.config`:
+
+    - ``--encoder`` + ``--pretext``: feed
+      :func:`augur.utils.config.load_tile_model_config`. ``--pretext``
+      is variadic; ``full`` expands to all three encoder pretexts,
+      ``none`` (or empty) leaves the model with only
+      ``tissue_segmentation``.
+    - ``--dataset``: feeds
+      :func:`augur.utils.config.load_dataset_config` with
+      ``flavor="tile"``. The dataset's ``tasks`` list is computed from
+      the same ``--pretext`` selection so the datamodule never declares
+      a task the model can't predict.
+    - ``--trainer``: feeds
+      :func:`augur.utils.config.load_trainer_config`. Defaults to
+      ``default`` (production GPU/DDP recipe); pass ``test`` for the
+       fast-dev recipe.
+    """
     parser = argparse.ArgumentParser(description="Train a tile-level model.")
     parser.add_argument(
-        "--model-config",
-        default="configs/model-resnet50-full.yaml",
-        help="Path to the model YAML config.",
+        "--config-dir",
+        default="configs",
+        help="Directory containing the partial-config subdirectories.",
     )
     parser.add_argument(
-        "--dataset-config",
-        default="configs/tile_dataset-TCGA-BRCA-test.yaml",
-        help="Path to the dataset YAML config.",
+        "--tile-model-config-subdir",
+        default="tile-model",
+        help="Subdirectory of --config-dir holding the partial tile-model YAMLs.",
     )
     parser.add_argument(
-        "--training-config",
-        default="configs/training-resnet50-test.yaml",
-        help="Path to the training YAML config.",
+        "--dataset-config-subdir",
+        default="dataset",
+        help="Subdirectory of --config-dir holding the partial dataset YAMLs.",
+    )
+    parser.add_argument(
+        "--trainer-config-subdir",
+        default="trainer",
+        help="Subdirectory of --config-dir holding the partial trainer YAMLs.",
+    )
+    parser.add_argument(
+        "--encoder",
+        default="resnet50",
+        choices=["resnet50", "prov-gigapath"],
+        help="Tile encoder backbone.",
+    )
+    parser.add_argument(
+        "--pretext",
+        default=[],
+        nargs="*",
+        choices=["full", "none", "hematoxylin", "jigmag", "magnification"],
+        metavar="TOKEN",
+        help=(
+            "Zero or more encoder pretext tasks. Stack tokens to add "
+            "decoders (e.g. `--pretext hematoxylin jigmag`). `full` is "
+            "shorthand for all three; `none` (or empty) trains only the "
+            "tissue_segmentation head."
+        ),
+    )
+    parser.add_argument(
+        "--dataset",
+        default="tcga-brca-test",
+        help=(
+            "Dataset base token (e.g. 'tcga-brca', 'tcga-brca-test'); "
+            "selects `base-{token}.yaml` under the dataset partial dir. "
+            "Always loaded with `flavor='tile'`."
+        ),
+    )
+    parser.add_argument(
+        "--trainer",
+        default="default",
+        choices=["default", "test", "cpu"],
+        help="Trainer recipe; selects `base-{name}.yaml` under the trainer partial dir.",
     )
     return parser
 
 
+def _compose_run_name(encoder: str, pretexts: list[str]) -> str:
+    """Compose the run name from --encoder + --pretext tokens.
+
+    Mirrors the checkpoint-name tag produced by
+    :func:`augur.utils.config.load_tile_model_config`:
+
+    - empty → ``<encoder>-none``
+    - all three → ``<encoder>-full``
+    - explicit subset → ``<encoder>-<p1>[-<p2>...]`` (CLI order).
+    """
+    expanded: list[str] = []
+    for token in pretexts:
+        if token == "full":
+            expanded.extend(["hematoxylin", "jigmag", "magnification"])
+        elif token == "none":
+            continue
+        else:
+            expanded.append(token)
+
+    if not expanded:
+        tag = "none"
+    elif set(expanded) == {"hematoxylin", "jigmag", "magnification"}:
+        tag = "full"
+    else:
+        tag = "-".join(expanded)
+    return f"{encoder}-{tag}"
+
+
 def main() -> None:
     """CLI entrypoint for tile-model training."""
-    parser = _build_arg_parser()
-    args = parser.parse_args()
+    args = _build_arg_parser().parse_args()
+
+    tile_model_config_dir = os.path.join(args.config_dir, args.tile_model_config_subdir)
+    dataset_config_dir = os.path.join(args.config_dir, args.dataset_config_subdir)
+    trainer_config_dir = os.path.join(args.config_dir, args.trainer_config_subdir)
+
+    model_config = load_tile_model_config(
+        tile_model_config_dir,
+        encoder=args.encoder,
+        pretexts=args.pretext,
+    )
+    dataset_config = load_dataset_config(
+        dataset_config_dir,
+        base=args.dataset,
+        flavor="tile",
+        pretexts=args.pretext,
+    )
+    training_config = load_trainer_config(
+        trainer_config_dir,
+        trainer=args.trainer,
+    )
+
+    run_name = _compose_run_name(args.encoder, list(args.pretext))
 
     train(
-        model_config_path=args.model_config,
-        dataset_config_path=args.dataset_config,
-        training_config_path=args.training_config,
+        model_config=model_config,
+        dataset_config=dataset_config,
+        training_config=training_config,
+        run_name=run_name,
+        tile_model_config_dir=tile_model_config_dir,
     )
 
 

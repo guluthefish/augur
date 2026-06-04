@@ -9,10 +9,6 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
 from augur.models.model_abc import ModelABC
-from augur.models.utils import (
-    get_lr_scheduler_from_config,
-    get_optimizer_from_config,
-)
 
 
 class _ConvBlock(nn.Module):
@@ -154,22 +150,13 @@ class UNetEncoder(ModelABC):
                 f"dropout must be a float in the range [0.0, 1.0). Got: {dropout}"
             )
 
-        optimizer_factory, optimizer_kwargs = get_optimizer_from_config(
-            config.get("optimizer", None)
-        )
-        lr_scheduler_factory, lr_scheduler_kwargs, lr_scheduler_config = (
-            get_lr_scheduler_from_config(config.get("lr_scheduler", None))
-        )
+        # UNetEncoder is a sub-component of TileModel; its optimizer config
+        # is owned by the parent and is ignored here.
 
         return UNetEncoder(
             input_channels=input_channels,
             feature_channels=feature_channels,
             dropout=dropout,
-            optimizer_factory=optimizer_factory,
-            optimizer_kwargs=optimizer_kwargs,
-            lr_scheduler_factory=lr_scheduler_factory,
-            lr_scheduler_kwargs=lr_scheduler_kwargs,
-            lr_scheduler_config=lr_scheduler_config,
         )
 
     def forward(  # pylint: disable=arguments-differ
@@ -206,6 +193,15 @@ class UNetEncoder(ModelABC):
         raise NotImplementedError(
             "UNetEncoder is an encoder-only Lightning module. Override "
             "model_step() in a task-specific subclass to compute a loss."
+        )
+
+    def configure_optimizers(self: UNetEncoder) -> None:
+        """Sub-component — its optimizer is owned by the parent TileModel."""
+        raise NotImplementedError(
+            "UNetEncoder is an encoder sub-component, not a top-level "
+            "Lightning module. Its optimizer is configured by the parent "
+            "TileModel; train the TileModel (or another top-level model that "
+            "wraps UNetEncoder) instead of this module directly."
         )
 
     def _extract_image_tensor(self: UNetEncoder, batch: Any) -> Tensor:

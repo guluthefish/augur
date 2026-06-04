@@ -928,18 +928,14 @@ class DualCLAM(ModelABC):
         """Dispatch the subtask mutational-signature loss based on the task name."""
         match subtask:
             case (
-                "sbs_regression"
-                | "dbs_regression"
-                | "id_regression"
-                | "cnv_regression"
+                "sbs_regression" | "dbs_regression" | "id_regression" | "cnv_regression"
             ):
                 # Targets are per-submitter normalized COSMIC exposure vectors
                 # (row-sum 1), so distributional KL is the appropriate loss.
+                print(f"DEBUG: {subtask}, {prediction.shape}, {target.shape}")
                 return compute_distribution_kl_loss(prediction, target)
             case _:
-                raise ValueError(
-                    f"No default loss defined for subtask '{subtask}'."
-                )
+                raise ValueError(f"No default loss defined for subtask '{subtask}'.")
 
     def _compute_instance_loss(
         self: DualCLAM,

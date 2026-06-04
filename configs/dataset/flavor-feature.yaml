@@ -1,0 +1,13 @@
+# Overrides applied on top of base-{dataset}.yaml when `--precomputed` is
+# set. Switches the datamodule to TCGAFeatureDataset and bumps batch sizes
+# / worker counts because feature bags are tiny tensors (a few KB per slide)
+# compared to whole-slide tile bags. `params.features_dir` and
+# `params.expected_encoder_name` are filled in by `load_dataset_config` based
+# on the chosen encoder/pretext (or an explicit --features-dir override).
+name: TCGAFeatureDataset
+params:
+  batch_size: 16
+  val_batch_size: 8
+  test_batch_size: 8
+  num_workers: 4
+  prefetch_factor: 2

@@ -4,6 +4,6 @@
 params:
   subtasks: ["cnv_regression"]
   output_dims:
-    cnv_regression: 48
+    cnv_regression: 26
   task_weights:
     cnv_regression: 1.0

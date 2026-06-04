@@ -138,24 +138,32 @@ class TileModel(ModelABC):
 
     @staticmethod
     def from_config(config: dict[str, Any]) -> TileModel:
-        """Construct a ``TileModel`` from a configuration dictionary."""
+        """Construct a ``TileModel`` from a configuration dictionary.
+
+        Accepts the shorthand keys ``encoder`` and ``decoders`` used by the
+        modular partial-merge flow (:func:`augur.utils.config.load_tile_model_config`),
+        and falls back to the legacy ``encoder_config`` / ``decoders_config``
+        keys for single-file configs that referenced sibling YAMLs by path.
+        """
         if not isinstance(config, dict):
             raise TypeError("TileModel config must be provided as a dict.")
 
+        encoder_spec = config.get("encoder", config.get("encoder_config"))
         encoder_config = TileModel._resolve_component_config(
-            config.get("encoder_config"),
-            label="encoder_config",
+            encoder_spec,
+            label="encoder",
         )
         encoder = get_module_from_config(encoder_config)
 
-        decoders_config = config.get("decoders_config", None)
-        if not isinstance(decoders_config, dict):
+        decoders_spec = config.get("decoders", config.get("decoders_config"))
+        if not isinstance(decoders_spec, dict):
             raise TypeError(
-                "TileModel configuration field 'decoders_config' must be a dict."
+                "TileModel configuration field 'decoders' (or legacy "
+                "'decoders_config') must be a dict."
             )
 
         decoders: dict[str, ModelABC] = {}
-        for task_name, decoder_spec in decoders_config.items():
+        for task_name, decoder_spec in decoders_spec.items():
             if decoder_spec is None:
                 continue
             decoder_config = TileModel._resolve_component_config(

@@ -1,0 +1,11 @@
+params:
+  decoders:
+    magnification:
+      name: Classifier
+      params:
+        input_dim: 1536
+        hidden_dims: [512, 256]
+        output_dim: 4
+        dropout: 0.2
+  task_weights:
+    magnification: 1.0

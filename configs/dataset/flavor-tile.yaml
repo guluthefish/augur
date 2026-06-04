@@ -1,0 +1,18 @@
+# Overrides applied on top of base-{dataset}.yaml when the tile flavor is
+# selected (used by `train_tile_encoder.py`). Switches the datamodule to
+# TCGATileDataset and adds the tile-multitask-specific fields that the slide
+# base doesn't carry:
+#   - magnification_mpps / jigmag_mpps: multi-MPP grids the encoder predicts.
+#   - tiles_per_slide: random sampling budget per slide each epoch.
+#   - train_budget / val_budget / test_budget: per-epoch sample budgets.
+# `params.tasks` is filled in by `load_dataset_config` from the CLI
+# pretexts (with `tissue_segmentation` always present).
+name: TCGATileDataset
+params:
+  magnification_mpps: [0.25, 0.5, 1.0, 2.0]
+  jigmag_mpps: [0.25, 0.5, 1.0, 2.0]
+  tiles_per_slide: 64
+  train_budget: 0.4
+  val_budget: 0.2
+  test_budget: 0.4
+  batch_size: 16

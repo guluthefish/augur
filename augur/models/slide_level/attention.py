@@ -10,7 +10,6 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
 from augur.models.model_abc import ModelABC
-from augur.models.utils import get_lr_scheduler_from_config, get_optimizer_from_config
 
 
 class Attention(ModelABC):
@@ -88,23 +87,14 @@ class Attention(ModelABC):
 
     @staticmethod
     def from_config(config: dict[str, Any]) -> Attention:
+        # Attention is a sub-component of DualCLAM / EmbeddingMIL; its
+        # optimizer config is owned by the parent and is ignored here.
         input_dim, hidden_dim, num_heads, dropout = _parse_attention_config(config)
-        optimizer_factory, optimizer_kwargs = get_optimizer_from_config(
-            config.get("optimizer", None)
-        )
-        lr_scheduler_factory, lr_scheduler_kwargs, lr_scheduler_config = (
-            get_lr_scheduler_from_config(config.get("lr_scheduler", None))
-        )
         return Attention(
             input_dim=input_dim,
             hidden_dim=hidden_dim,
             num_heads=num_heads,
             dropout=dropout,
-            optimizer_factory=optimizer_factory,
-            optimizer_kwargs=optimizer_kwargs,
-            lr_scheduler_factory=lr_scheduler_factory,
-            lr_scheduler_kwargs=lr_scheduler_kwargs,
-            lr_scheduler_config=lr_scheduler_config,
         )
 
     def forward(  # pylint: disable=arguments-differ
@@ -147,6 +137,15 @@ class Attention(ModelABC):
         raise NotImplementedError(
             "Attention is an aggregator-only Lightning module. Override "
             "model_step() in a task-specific module to compute a loss."
+        )
+
+    def configure_optimizers(self: Attention) -> None:
+        """Sub-component — optimizer is owned by the parent DualCLAM/EmbeddingMIL."""
+        raise NotImplementedError(
+            "Attention is a pooling sub-component, not a top-level Lightning "
+            "module. Its optimizer is configured by the parent slide-level "
+            "model (DualCLAM / EmbeddingMIL); train the parent module instead "
+            "of this one directly."
         )
 
 
@@ -227,23 +226,14 @@ class GatedAttention(ModelABC):
 
     @staticmethod
     def from_config(config: dict[str, Any]) -> GatedAttention:
+        # GatedAttention is a sub-component of DualCLAM / EmbeddingMIL; its
+        # optimizer config is owned by the parent and is ignored here.
         input_dim, hidden_dim, num_heads, dropout = _parse_attention_config(config)
-        optimizer_factory, optimizer_kwargs = get_optimizer_from_config(
-            config.get("optimizer", None)
-        )
-        lr_scheduler_factory, lr_scheduler_kwargs, lr_scheduler_config = (
-            get_lr_scheduler_from_config(config.get("lr_scheduler", None))
-        )
         return GatedAttention(
             input_dim=input_dim,
             hidden_dim=hidden_dim,
             num_heads=num_heads,
             dropout=dropout,
-            optimizer_factory=optimizer_factory,
-            optimizer_kwargs=optimizer_kwargs,
-            lr_scheduler_factory=lr_scheduler_factory,
-            lr_scheduler_kwargs=lr_scheduler_kwargs,
-            lr_scheduler_config=lr_scheduler_config,
         )
 
     def forward(  # pylint: disable=arguments-differ
@@ -287,6 +277,15 @@ class GatedAttention(ModelABC):
         raise NotImplementedError(
             "GatedAttention is an aggregator-only Lightning module. Override "
             "model_step() in a task-specific module to compute a loss."
+        )
+
+    def configure_optimizers(self: GatedAttention) -> None:
+        """Sub-component — optimizer is owned by the parent DualCLAM/EmbeddingMIL."""
+        raise NotImplementedError(
+            "GatedAttention is a pooling sub-component, not a top-level "
+            "Lightning module. Its optimizer is configured by the parent "
+            "slide-level model (DualCLAM / EmbeddingMIL); train the parent "
+            "module instead of this one directly."
         )
 
 
