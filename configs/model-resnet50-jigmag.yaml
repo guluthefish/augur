@@ -1,7 +1,0 @@
-extends: common-params.yaml
-params:
-  encoder_config: encoder-resnet50.yaml
-  decoders_config:
-    tissue_segmentation: decoder-unet50-tissue-segmentation.yaml
-    jigmag: decoder-classifier-maxpool-jigmag.yaml
-checkpoint_path: checkpoints/resnet50-jigmag.pth

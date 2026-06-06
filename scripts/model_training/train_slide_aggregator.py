@@ -640,6 +640,30 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         choices=["full", "hematoxylin", "jigmag", "magnification", "none"],
         help="Encoder pretext task; used to compose the aggregator checkpoint path.",
     )
+    parser.add_argument(
+        "--n-folds",
+        type=int,
+        default=None,
+        help=(
+            "If set, run stratified group k-fold cross-validation on the "
+            "slide-level main task (currently only used by 'subtyping'). Must "
+            "be paired with --fold-idx. Unknown (class 0) is excluded from the "
+            "CV. When unset, the default fraction-based train/val/test split "
+            "is used."
+        ),
+    )
+    parser.add_argument(
+        "--fold-idx",
+        type=int,
+        default=None,
+        help=(
+            "0-based index of the fold whose test partition is the held-out "
+            "set for this run. Must be paired with --n-folds and satisfy "
+            "0 <= fold_idx < n_folds. The run_name and the aggregator's "
+            "checkpoint_path stem are suffixed with '-fold{idx}' so per-fold "
+            "outputs do not collide."
+        ),
+    )
 
     return parser
 
@@ -882,6 +906,8 @@ def main() -> None:
         encoder=args.encoder,
         pretext=args.pretext,
         features_dir=args.features_dir,
+        n_folds=args.n_folds,
+        fold_idx=args.fold_idx,
     )
 
     training_config = load_trainer_config(
@@ -901,6 +927,23 @@ def main() -> None:
             "'checkpoint_path' string."
         )
     full_model_name = os.path.splitext(os.path.basename(checkpoint_path))[0]
+
+    # When running k-fold CV, suffix run_name + checkpoint_path stem with
+    # `-fold{idx}` so each fold writes to its own log dir / export path.
+    # TCGASlideDataset.__init__ enforces the pairing + range checks; here we
+    # only need a cheap "both provided" guard for a clean CLI error.
+    if (args.n_folds is None) != (args.fold_idx is None):
+        raise ValueError(
+            "--n-folds and --fold-idx must be provided together (or both omitted)."
+        )
+    if args.n_folds is not None:
+        fold_suffix = f"-fold{args.fold_idx}"
+        full_model_name = f"{full_model_name}{fold_suffix}"
+        ckpt_dir = os.path.dirname(checkpoint_path)
+        ckpt_stem, ckpt_ext = os.path.splitext(os.path.basename(checkpoint_path))
+        model_config["checkpoint_path"] = os.path.join(
+            ckpt_dir, f"{ckpt_stem}{fold_suffix}{ckpt_ext}"
+        )
 
     train(
         model_config=model_config,

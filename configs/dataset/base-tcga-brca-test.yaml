@@ -9,9 +9,9 @@ params:
   min_tissue_fraction: 0.25
   thumbnail_max_size: 1024
   white_threshold: 0.85
-  train_fraction: 0.7
-  val_fraction: 0.15
-  test_fraction: 0.15
+  train_fraction: 0.8
+  val_fraction: 0.2
+  n_folds: 5
   random_seed: 42
   batch_size: 2
   num_workers: 2

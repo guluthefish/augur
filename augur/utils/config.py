@@ -337,6 +337,8 @@ def load_dataset_config(
     encoder: str | None = None,
     pretext: str | None = None,
     features_dir: str | None = None,
+    n_folds: int | None = None,
+    fold_idx: int | None = None,
 ) -> dict[str, Any]:
     """Compose a dataset config from partial YAMLs under ``dataset_dir``.
 
@@ -411,6 +413,10 @@ def load_dataset_config(
             params["subtasks"] = list(subtask_list)
         else:
             params.pop("subtasks", None)
+        if n_folds is not None:
+            params["n_folds"] = n_folds
+        if fold_idx is not None:
+            params["fold_idx"] = fold_idx
 
     if flavor == "feature":
         if features_dir is None:

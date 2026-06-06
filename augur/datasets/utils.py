@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 from openslide import OpenSlide
 import pandas as pd
+from sklearn.model_selection import GroupShuffleSplit, StratifiedGroupKFold
 import torch
 
 
@@ -480,6 +481,127 @@ def split_slide_records(
         "val": [slide for slide in slides if slide.submitter_id in val_ids],
         "test": [slide for slide in slides if slide.submitter_id in test_ids],
     }
+
+
+def split_slide_records_kfold(
+    slides: Sequence[SlideRecord],
+    *,
+    submitter_labels: dict[str, int],
+    n_folds: int,
+    fold_idx: int,
+    val_fraction: float,
+    seed: int,
+    exclude_label: int | None = None,
+) -> dict[str, list[SlideRecord]]:
+    """
+    Stratified, patient-grouped k-fold split.
+
+    Slides are grouped by ``submitter_id`` so a patient never crosses splits, and
+    stratified by the subtype label in ``submitter_labels`` so class proportions
+    are roughly preserved per fold. Slides whose submitter label equals
+    ``exclude_label`` (default 0, the Unknown class) are dropped from the
+    cross-validation entirely. Submitters missing from ``submitter_labels`` are
+    also dropped (so the Unknown backfill upstream must run first if you intend
+    to keep them as Unknown via ``exclude_label=0``).
+
+    Fold semantics: with seed and ``n_folds`` fixed, the outer split partitions
+    eligible patients into ``n_folds`` disjoint folds; iterating
+    ``fold_idx = 0..n_folds-1`` makes each non-excluded patient appear in
+    ``"test"`` exactly once. The remaining ``n_folds - 1`` folds form the
+    trainval pool, from which ``"val"`` is carved as approximately
+    ``val_fraction`` of that pool (stratified and grouped).
+
+    Parameters
+    ----------
+    slides:
+        Records to split.
+    submitter_labels:
+        Mapping ``submitter_id -> class index`` used for stratification.
+    n_folds:
+        Number of CV folds (``>= 2``).
+    fold_idx:
+        0-based index of the fold whose test partition becomes ``"test"``
+        (``0 <= fold_idx < n_folds``).
+    val_fraction:
+        Approximate fraction of the trainval pool to carve as ``"val"``. ``0``
+        disables the val carve (``"val"`` returned empty).
+    seed:
+        Random seed for both the outer and inner (val) carves.
+    exclude_label:
+        Optional class index to exclude entirely from the CV. ``None`` (the
+        default) disables exclusion. Pass an integer index only if the label
+        table still encodes an explicit "drop" class.
+
+    Returns
+    -------
+    dict[str, list[SlideRecord]]
+        Keys ``"train"``, ``"val"``, ``"test"``. Splits are patient-disjoint.
+
+    Raises
+    ------
+    ValueError
+        If ``n_folds < 2``, ``fold_idx`` is out of range, ``val_fraction`` is
+        outside ``[0, 1)``, or the eligible cohort is too small / too imbalanced
+        for ``StratifiedGroupKFold`` to honor ``n_folds``.
+    """
+    if n_folds < 2:
+        raise ValueError(f"n_folds must be >= 2, got {n_folds}.")
+    if not 0 <= fold_idx < n_folds:
+        raise ValueError(
+            f"fold_idx must satisfy 0 <= fold_idx < n_folds (= {n_folds}), "
+            f"got {fold_idx}."
+        )
+    if not 0.0 <= val_fraction < 1.0:
+        raise ValueError(f"val_fraction must lie in [0, 1), got {val_fraction}.")
+
+    # Keep only slides whose submitter has a (non-excluded) label.
+    eligible: list[SlideRecord] = []
+    labels: list[int] = []
+    groups: list[str] = []
+    for slide in slides:
+        label = submitter_labels.get(slide.submitter_id)
+        if label is None:
+            continue
+        if exclude_label is not None and label == exclude_label:
+            continue
+        eligible.append(slide)
+        labels.append(label)
+        groups.append(slide.submitter_id)
+
+    if not eligible:
+        return {"train": [], "val": [], "test": []}
+
+    y = np.asarray(labels)
+    groups_arr = np.asarray(groups)
+
+    # Outer split: pick the fold_idx-th (trainval, test) partition.
+    outer = StratifiedGroupKFold(n_splits=n_folds, shuffle=True, random_state=seed)
+    outer_splits = list(outer.split(eligible, y, groups_arr))  # type: ignore
+    trainval_idx, test_idx = outer_splits[fold_idx]
+
+    test_records = [eligible[i] for i in test_idx]
+
+    if val_fraction == 0.0:
+        train_records = [eligible[i] for i in trainval_idx]
+        return {"train": train_records, "val": [], "test": test_records}
+
+    # Inner split: one grouped shuffle so |val| / |trainval| ≈ val_fraction.
+    # k-fold is only used to delimit the test partition (outer); the train/val
+    # carve is a single patient-grouped random split. Stratification on val is
+    # dropped here — sklearn has no StratifiedGroupShuffleSplit, and the outer
+    # StratifiedGroupKFold already balances classes per fold, so within one
+    # fold's trainval pool the class proportions are already roughly preserved.
+    trainval_records = [eligible[i] for i in trainval_idx]
+    trainval_groups = groups_arr[trainval_idx]
+
+    inner = GroupShuffleSplit(n_splits=1, test_size=val_fraction, random_state=seed)
+    inner_train_idx, val_idx = next(
+        iter(inner.split(trainval_records, groups=trainval_groups))  # type: ignore
+    )
+    train_records = [trainval_records[i] for i in inner_train_idx]
+    val_records = [trainval_records[i] for i in val_idx]
+
+    return {"train": train_records, "val": val_records, "test": test_records}
 
 
 def scaled_thumbnail_size(width: int, height: int, max_size: int) -> tuple[int, int]:

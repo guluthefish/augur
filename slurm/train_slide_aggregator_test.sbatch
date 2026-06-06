@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=attn-full
+#SBATCH --job-name=attn-full-fold0
 #SBATCH --gres=gpu:2
 #SBATCH --ntasks=1
 #SBATCH --partition=general
@@ -7,8 +7,8 @@
 #SBATCH --time=04:00:00
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
-#SBATCH --output=slurm/output/mil-attention-resnet50-full-%j.out
-#SBATCH --error=slurm/output/mil-attention-resnet50-full-%j.err
+#SBATCH --output=slurm/output/mil-attention-resnet50-full-fold0-%j.out
+#SBATCH --error=slurm/output/mil-attention-resnet50-full-fold0-%j.err
 
 # train_slide_aggregator.py composes its configs from the partial-merge
 # helpers in augur/utils/config.py. The tokens below feed:
@@ -23,8 +23,13 @@
 #   DATASET  → configs/dataset/base-<DATASET>.yaml
 #              (+ flavor-feature.yaml when PRECOMPUTED=1)
 #   TRAINER  → configs/trainer/base-<TRAINER>.yaml
+# Stratified group k-fold CV is required by the dataset YAML (params.n_folds);
+# this smoke-test script runs a single fold (FOLD_IDX, default 0). To exercise
+# a different fold, edit FOLD_IDX or submit as an array, e.g.
+#   sbatch --array=0-4 slurm/train_slide_aggregator_test.sbatch
+# (the SLURM_ARRAY_TASK_ID env var then drives FOLD_IDX automatically).
 # The run name (and therefore checkpoint / log filename) is
-#   <BASE>[-<SUBTASKS>...]-<VARIANT>[-<ADD_ON>]-<ENCODER>-<PRETEXT>
+#   <BASE>[-<SUBTASKS>...]-<VARIANT>[-<ADD_ON>]-<ENCODER>-<PRETEXT>-fold<IDX>
 # Edit the SBATCH --job-name / --output / --error above to match when
 # changing any of these tokens.
 
@@ -49,6 +54,14 @@ PRETEXT="full"
 # --- Dataset + trainer recipe ------------------------------------------------
 DATASET="tcga-brca"
 TRAINER="test"    # default (production GPU/DDP) | test (fast-dev)
+
+# --- Cross-validation --------------------------------------------------------
+# N_FOLDS must match params.n_folds in configs/dataset/base-<DATASET>.yaml;
+# both values are passed through so the slurm submission stays self-describing.
+# FOLD_IDX defaults to 0 for single-shot runs and is overridden by
+# SLURM_ARRAY_TASK_ID when this script is submitted as an array.
+N_FOLDS=5
+FOLD_IDX="${SLURM_ARRAY_TASK_ID:-0}"
 
 # --- Feature cache -----------------------------------------------------------
 # 1 → load precomputed features (TCGAFeatureDataset); 0 → encode on the fly.
@@ -76,6 +89,8 @@ echo "pretext:    $PRETEXT"
 echo "dataset:    $DATASET"
 echo "trainer:    $TRAINER"
 echo "precomputed: $PRECOMPUTED"
+echo "n_folds:    $N_FOLDS"
+echo "fold_idx:   $FOLD_IDX"
 if [ "$PRECOMPUTED" = "1" ] && [ -n "$FEATURES_DIR" ]; then
     echo "features_dir: $FEATURES_DIR"
 fi
@@ -116,5 +131,7 @@ srun apptainer exec \
             --pretext "$PRETEXT" \
             --dataset "$DATASET" \
             --trainer "$TRAINER" \
+            --n-folds "$N_FOLDS" \
+            --fold-idx "$FOLD_IDX" \
             $PRECOMPUTED_FLAG \
             ${FEATURES_DIR:+--features-dir "$FEATURES_DIR"}

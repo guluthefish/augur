@@ -1,7 +1,0 @@
-extends: common-params.yaml
-params:
-  encoder_config: encoder-prov-gigapath.yaml
-  decoders_config:
-    tissue_segmentation: decoder-dpt-tissue-segmentation.yaml
-    magnification: decoder-classifier-identity-magnification.yaml
-checkpoint_path: checkpoints/prov-gigapath-magnification.pth

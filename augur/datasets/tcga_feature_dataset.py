@@ -57,6 +57,7 @@ from augur.datasets.utils import (
     resolve_slide_main_label_path,
     resolve_slide_subtask_label_path,
     split_slide_records,
+    split_slide_records_kfold,
 )
 from augur.utils.logger import setup_logger
 
@@ -313,8 +314,18 @@ class TCGAFeatureDataset(DatasetABC):
         Fraction of cached tiles to sample per slide, in ``(0, 1]``.
     max_tiles_per_bag
         Optional hard cap on bag size after applying ``portion_per_sample``.
-    train_fraction, val_fraction, test_fraction, random_seed, max_slides
+    train_fraction, val_fraction, random_seed, max_slides
         Patient-level split controls, identical to :class:`TCGASlideDataset`.
+        In fraction mode (``n_folds`` is ``None``), ``train_fraction +
+        val_fraction`` must be ``< 1`` and the remainder is the test split.
+        In k-fold mode (``n_folds`` set), ``train_fraction + val_fraction``
+        must equal 1 — they partition the trainval pool, and the test split
+        is the ``fold_idx``-th of ``n_folds`` patient-grouped,
+        subtype-stratified folds.
+    n_folds, fold_idx
+        Optional stratified group k-fold CV configuration. Both ``None`` for
+        the default fraction-based split, or both set with
+        ``0 <= fold_idx < n_folds``.
     enc_dim
         Optional declared feature dim; if provided, validated against the
         cache on setup. If omitted, inferred from the first cache file.
@@ -347,8 +358,9 @@ class TCGAFeatureDataset(DatasetABC):
         max_tiles_per_bag: int | None = None,
         train_fraction: float = 0.8,
         val_fraction: float = 0.1,
-        test_fraction: float = 0.1,
         random_seed: int = 42,
+        n_folds: int | None = None,
+        fold_idx: int | None = None,
         max_slides: int | None = None,
         enc_dim: int | None = None,
         expected_encoder_name: str | None = None,
@@ -429,11 +441,50 @@ class TCGAFeatureDataset(DatasetABC):
             not isinstance(max_slides, int) or max_slides <= 0
         ):
             raise ValueError("max_slides must be a positive integer or None.")
-        split_sum = train_fraction + val_fraction + test_fraction
-        if not np.isclose(split_sum, 1.0):
+        if (n_folds is None) != (fold_idx is None):
             raise ValueError(
-                "train_fraction + val_fraction + test_fraction must sum to 1."
+                "n_folds and fold_idx must both be set or both be None."
             )
+        if n_folds is None:
+            # Fraction mode: train/val partition the whole cohort together
+            # with an implicit test = 1 - train - val.
+            if not 0.0 <= train_fraction <= 1.0:
+                raise ValueError(
+                    f"train_fraction must be in [0, 1], got {train_fraction}."
+                )
+            if not 0.0 <= val_fraction <= 1.0:
+                raise ValueError(
+                    f"val_fraction must be in [0, 1], got {val_fraction}."
+                )
+            if train_fraction + val_fraction >= 1.0:
+                raise ValueError(
+                    "train_fraction + val_fraction must be < 1 so a positive "
+                    f"test split remains. Got train_fraction={train_fraction}, "
+                    f"val_fraction={val_fraction}."
+                )
+            test_fraction = 1.0 - train_fraction - val_fraction
+        else:
+            # K-fold mode: test = 1/n_folds of total; train+val partition
+            # the trainval pool and must sum to 1.
+            if not isinstance(n_folds, int) or n_folds < 2:
+                raise ValueError(f"n_folds must be an integer >= 2, got {n_folds}.")
+            if (
+                not isinstance(fold_idx, int)
+                or fold_idx < 0
+                or fold_idx >= n_folds
+            ):
+                raise ValueError(
+                    f"fold_idx must be an integer in [0, n_folds) = [0, {n_folds}), "
+                    f"got {fold_idx}."
+                )
+            if not np.isclose(train_fraction + val_fraction, 1.0):
+                raise ValueError(
+                    "When n_folds is set, train_fraction + val_fraction must sum "
+                    "to 1 (they partition the trainval pool; test is taken from "
+                    f"n_folds). Got train_fraction={train_fraction}, "
+                    f"val_fraction={val_fraction}."
+                )
+            test_fraction = 0.0
 
         self.root_dir = root_dir
         self.features_dir = os.path.abspath(features_dir)
@@ -453,6 +504,8 @@ class TCGAFeatureDataset(DatasetABC):
         self.val_fraction = float(val_fraction)
         self.test_fraction = float(test_fraction)
         self.random_seed = int(random_seed)
+        self.n_folds: int | None = int(n_folds) if n_folds is not None else None
+        self.fold_idx: int | None = int(fold_idx) if fold_idx is not None else None
         self.max_slides = max_slides
         self._declared_enc_dim = enc_dim
         self._declared_encoder_name = expected_encoder_name
@@ -667,20 +720,42 @@ class TCGAFeatureDataset(DatasetABC):
         dropped = len(slide_records) - len(labelled_records)
         if dropped:
             self.logger.warning(
-                "Dropped %d slide(s) without all required labels.", dropped
+                "Dropped %d slide(s) whose submitter is missing the main label "
+                "or any required subtask label.",
+                dropped,
             )
         if not labelled_records:
             raise RuntimeError("No slides have all requested labels available.")
         if self.max_slides is not None:
             labelled_records = labelled_records[: self.max_slides]
 
-        splits = split_slide_records(
-            labelled_records,
-            train_fraction=self.train_fraction,
-            val_fraction=self.val_fraction,
-            test_fraction=self.test_fraction,
-            seed=self.random_seed,
-        )
+        if self.n_folds is not None:
+            assert self.fold_idx is not None  # enforced in __init__
+            splits = split_slide_records_kfold(
+                labelled_records,
+                submitter_labels=self._main_submitter_labels,
+                n_folds=self.n_folds,
+                fold_idx=self.fold_idx,
+                val_fraction=self.val_fraction,
+                seed=self.random_seed,
+            )
+            self.logger.info(
+                "Using stratified group %d-fold split (fold_idx=%d): "
+                "train=%d val=%d test=%d slide(s).",
+                self.n_folds,
+                self.fold_idx,
+                len(splits["train"]),
+                len(splits["val"]),
+                len(splits["test"]),
+            )
+        else:
+            splits = split_slide_records(
+                labelled_records,
+                train_fraction=self.train_fraction,
+                val_fraction=self.val_fraction,
+                test_fraction=self.test_fraction,
+                seed=self.random_seed,
+            )
         splits["predict"] = list(labelled_records)
         self._slide_splits = splits
         return splits
@@ -867,6 +942,13 @@ class TCGAFeatureDataset(DatasetABC):
         ):
             raise ValueError("max_slides must be a positive integer or None.")
 
+        n_folds = config.get("n_folds", None)
+        fold_idx = config.get("fold_idx", None)
+        if n_folds is not None and (not isinstance(n_folds, int) or n_folds < 2):
+            raise ValueError("n_folds must be an integer >= 2 or None.")
+        if fold_idx is not None and not isinstance(fold_idx, int):
+            raise ValueError("fold_idx must be an integer or None.")
+
         max_tiles_per_bag = config.get("max_tiles_per_bag", None)
         if max_tiles_per_bag is not None and (
             not isinstance(max_tiles_per_bag, int) or max_tiles_per_bag <= 0
@@ -926,8 +1008,9 @@ class TCGAFeatureDataset(DatasetABC):
             max_tiles_per_bag=max_tiles_per_bag,
             train_fraction=_fraction("train_fraction", 0.8),
             val_fraction=_fraction("val_fraction", 0.1),
-            test_fraction=_fraction("test_fraction", 0.1),
             random_seed=int(config.get("random_seed", 42)),
+            n_folds=n_folds,
+            fold_idx=fold_idx,
             max_slides=max_slides,
             enc_dim=enc_dim,
             expected_encoder_name=expected_encoder_name,
