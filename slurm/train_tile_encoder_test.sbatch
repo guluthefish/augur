@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=magnification
+#SBATCH --job-name=tile-test
 #SBATCH --gres=gpu:2
 #SBATCH --partition=general
 #SBATCH --qos=short
@@ -7,8 +7,8 @@
 #SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
-#SBATCH --output=slurm/output/resnet50-magnification-%j.out
-#SBATCH --error=slurm/output/resnet50-magnification-%j.err
+#SBATCH --output=slurm/output/tile-test-%j.out
+#SBATCH --error=slurm/output/tile-test-%j.err
 
 set -eu
 
