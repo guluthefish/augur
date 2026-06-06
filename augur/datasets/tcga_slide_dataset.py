@@ -36,6 +36,7 @@ from augur.datasets.utils import (
     resolve_slide_main_label_path,
     resolve_slide_subtask_label_path,
     split_slide_records,
+    split_slide_records_kfold,
     _make_tile_record_for_mpp,
 )
 from augur.utils.logger import setup_logger
@@ -367,8 +368,12 @@ class TCGASlideDataset(DatasetABC):
     Main task is slide-level subtyping (classification): the per-submitter
     histologic-subtype class is read from
     ``<root_dir>/atlases/slide_main_atlas.txt`` (or ``main_labels_path``) and
-    emitted as a scalar ``long`` at ``batch["target"]``. ``Unknown`` is
-    fixed at class index 0 (treat as the unknown class for ignore-index losses).
+    emitted as a scalar ``long`` at ``batch["target"]``. Class indices are
+    assigned in first-seen order over the real subtype values in the table;
+    there is no Unknown class. Slides whose submitter is missing from the
+    main label table — or whose normalized subtype is ``Unknown`` /
+    placeholder, or who is missing from any required subtask label table —
+    are dropped entirely.
 
     Subtask tasks are slide-level SBS exposure vectors keyed by the entries
     of ``slide_subtask_atlas.txt`` — currently ``sbs_regression``,
@@ -411,8 +416,17 @@ class TCGASlideDataset(DatasetABC):
         ``base_mpp`` before resizing to ``image_size``. ``min_tissue_fraction``
         and ``white_threshold`` filter candidates against a thumbnail tissue
         mask.
-    train_fraction, val_fraction, test_fraction, random_seed
-        Patient-level (submitter-level) splits. Fractions must sum to 1.
+    train_fraction, val_fraction, random_seed
+        Patient-level (submitter-level) split fractions. When ``n_folds`` is
+        ``None`` (fraction mode), ``train_fraction + val_fraction`` must be
+        ``< 1`` and the remainder is the test split. When ``n_folds`` is set
+        (k-fold mode), ``train_fraction + val_fraction`` must equal 1 — they
+        partition the trainval pool, and the test split is the ``fold_idx``-th
+        of ``n_folds`` patient-grouped, subtype-stratified folds.
+    n_folds, fold_idx
+        Optional stratified group k-fold CV configuration. Both ``None`` for
+        the fraction-based split (default), or both set with
+        ``0 <= fold_idx < n_folds``.
     max_slides
         Optional cap applied after dropping slides without all configured
         labels.
@@ -448,8 +462,9 @@ class TCGASlideDataset(DatasetABC):
         white_threshold: float = 0.85,
         train_fraction: float = 0.8,
         val_fraction: float = 0.1,
-        test_fraction: float = 0.1,
         random_seed: int = 42,
+        n_folds: int | None = None,
+        fold_idx: int | None = None,
         max_slides: int | None = None,
         logger: logging.Logger | None = None,
         batch_size: int = 8,
@@ -534,11 +549,52 @@ class TCGASlideDataset(DatasetABC):
             raise ValueError("white_threshold must be between 0 and 1.")
         if max_slides is not None and max_slides <= 0:
             raise ValueError("max_slides must be a positive integer or None.")
-        split_sum = train_fraction + val_fraction + test_fraction
-        if not np.isclose(split_sum, 1.0):
+        if (n_folds is None) != (fold_idx is None):
             raise ValueError(
-                "train_fraction + val_fraction + test_fraction must sum to 1."
+                "n_folds and fold_idx must both be set or both be None."
             )
+        if n_folds is None:
+            # Fraction-based split: train/val partition the whole cohort
+            # together with an implicit test = 1 - train - val. Both fractions
+            # must be in [0, 1] and leave room for a positive test split.
+            if not 0.0 <= train_fraction <= 1.0:
+                raise ValueError(
+                    f"train_fraction must be in [0, 1], got {train_fraction}."
+                )
+            if not 0.0 <= val_fraction <= 1.0:
+                raise ValueError(
+                    f"val_fraction must be in [0, 1], got {val_fraction}."
+                )
+            if train_fraction + val_fraction >= 1.0:
+                raise ValueError(
+                    "train_fraction + val_fraction must be < 1 so a positive "
+                    f"test split remains. Got train_fraction={train_fraction}, "
+                    f"val_fraction={val_fraction}."
+                )
+            test_fraction = 1.0 - train_fraction - val_fraction
+        else:
+            # K-fold mode: test is determined by n_folds (= 1/n_folds of total).
+            # train_fraction and val_fraction partition the trainval pool and
+            # must sum to 1.
+            if not isinstance(n_folds, int) or n_folds < 2:
+                raise ValueError(f"n_folds must be an integer >= 2, got {n_folds}.")
+            if (
+                not isinstance(fold_idx, int)
+                or fold_idx < 0
+                or fold_idx >= n_folds
+            ):
+                raise ValueError(
+                    f"fold_idx must be an integer in [0, n_folds) = [0, {n_folds}), "
+                    f"got {fold_idx}."
+                )
+            if not np.isclose(train_fraction + val_fraction, 1.0):
+                raise ValueError(
+                    "When n_folds is set, train_fraction + val_fraction must sum "
+                    "to 1 (they partition the trainval pool; test is taken from "
+                    f"n_folds). Got train_fraction={train_fraction}, "
+                    f"val_fraction={val_fraction}."
+                )
+            test_fraction = 0.0
 
         self.root_dir = root_dir
         self.main_task = main_task
@@ -563,6 +619,8 @@ class TCGASlideDataset(DatasetABC):
         self.val_fraction = float(val_fraction)
         self.test_fraction = float(test_fraction)
         self.random_seed = int(random_seed)
+        self.n_folds: int | None = int(n_folds) if n_folds is not None else None
+        self.fold_idx: int | None = int(fold_idx) if fold_idx is not None else None
         self.max_slides = max_slides
 
         self._resolved_manifest_path: str | None = None
@@ -644,6 +702,13 @@ class TCGASlideDataset(DatasetABC):
         ):
             raise ValueError("max_slides must be a positive integer or None.")
 
+        n_folds = config.get("n_folds", None)
+        fold_idx = config.get("fold_idx", None)
+        if n_folds is not None and (not isinstance(n_folds, int) or n_folds < 2):
+            raise ValueError("n_folds must be an integer >= 2 or None.")
+        if fold_idx is not None and not isinstance(fold_idx, int):
+            raise ValueError("fold_idx must be an integer or None.")
+
         predict_batch_size = config.get("predict_batch_size", None)
         val_batch_size = config.get("val_batch_size", None)
         test_batch_size = config.get("test_batch_size", None)
@@ -701,8 +766,9 @@ class TCGASlideDataset(DatasetABC):
             white_threshold=_fraction("white_threshold", 0.85),
             train_fraction=_fraction("train_fraction", 0.8),
             val_fraction=_fraction("val_fraction", 0.1),
-            test_fraction=_fraction("test_fraction", 0.1),
             random_seed=int(config.get("random_seed", 42)),
+            n_folds=n_folds,
+            fold_idx=fold_idx,
             max_slides=max_slides,
             batch_size=_positive_int("batch_size", 8),
             val_batch_size=val_batch_size,
@@ -890,31 +956,6 @@ class TCGASlideDataset(DatasetABC):
             self._resolved_manifest_path,
         )
 
-        # Backfill submitters that are missing from the main-task label table
-        # as Unknown (class index 0). Slides without a subtask label are still
-        # dropped because SBS regression targets cannot be imputed.
-        missing_main_submitters = {
-            record.submitter_id
-            for record in slide_records
-            if record.submitter_id not in self._main_submitter_labels
-        }
-        if missing_main_submitters:
-            for submitter_id in missing_main_submitters:
-                self._main_submitter_labels[submitter_id] = 0
-            assigned_slide_count = sum(
-                1
-                for record in slide_records
-                if record.submitter_id in missing_main_submitters
-            )
-            self.logger.warning(
-                "Assigned %d slide(s) across %d submitter(s) to Unknown "
-                "(class 0) for main task '%s' because their submitter was "
-                "missing from the label table.",
-                assigned_slide_count,
-                len(missing_main_submitters),
-                self.main_task,
-            )
-
         labelled_records = [
             record
             for record in slide_records
@@ -927,8 +968,8 @@ class TCGASlideDataset(DatasetABC):
         dropped = len(slide_records) - len(labelled_records)
         if dropped:
             self.logger.warning(
-                "Dropped %d slide(s) without matching subtask label(s) for "
-                "main task '%s'.",
+                "Dropped %d slide(s) whose submitter is missing the main label "
+                "or any required subtask label (main task '%s').",
                 dropped,
                 self.main_task,
             )
@@ -938,13 +979,33 @@ class TCGASlideDataset(DatasetABC):
         if self.max_slides is not None:
             labelled_records = labelled_records[: self.max_slides]
 
-        splits = split_slide_records(
-            labelled_records,
-            train_fraction=self.train_fraction,
-            val_fraction=self.val_fraction,
-            test_fraction=self.test_fraction,
-            seed=self.random_seed,
-        )
+        if self.n_folds is not None:
+            assert self.fold_idx is not None  # enforced in __init__
+            splits = split_slide_records_kfold(
+                labelled_records,
+                submitter_labels=self._main_submitter_labels,
+                n_folds=self.n_folds,
+                fold_idx=self.fold_idx,
+                val_fraction=self.val_fraction,
+                seed=self.random_seed,
+            )
+            self.logger.info(
+                "Using stratified group %d-fold split (fold_idx=%d): "
+                "train=%d val=%d test=%d slide(s).",
+                self.n_folds,
+                self.fold_idx,
+                len(splits["train"]),
+                len(splits["val"]),
+                len(splits["test"]),
+            )
+        else:
+            splits = split_slide_records(
+                labelled_records,
+                train_fraction=self.train_fraction,
+                val_fraction=self.val_fraction,
+                test_fraction=self.test_fraction,
+                seed=self.random_seed,
+            )
         splits["predict"] = list(labelled_records)
         self._slide_splits = splits
         return splits

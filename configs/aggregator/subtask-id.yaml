@@ -4,6 +4,6 @@
 params:
   subtasks: ["id_regression"]
   output_dims:
-    id_regression: 18
+    id_regression: 25
   task_weights:
     id_regression: 1.0

@@ -125,7 +125,7 @@ class _DualCLAMBase(nn.Module):
         num_main_branches: int,
         freeze_encoder: bool = True,
         encoder_chunk_size: int = 64,
-        unknown_class_index: int | None = 0,
+        unknown_class_index: int | None = None,
     ) -> None:
         super().__init__()
 
@@ -380,7 +380,7 @@ class DualCLAM_SB(_DualCLAMBase):
         attn_kwargs: dict[str, Any] | None = None,
         freeze_encoder: bool = True,
         encoder_chunk_size: int = 64,
-        unknown_class_index: int | None = 0,
+        unknown_class_index: int | None = None,
     ) -> None:
         super().__init__(
             encoder=encoder,
@@ -421,7 +421,7 @@ class DualCLAM_MB(_DualCLAMBase):
         attn_kwargs: dict[str, Any] | None = None,
         freeze_encoder: bool = True,
         encoder_chunk_size: int = 64,
-        unknown_class_index: int | None = 0,
+        unknown_class_index: int | None = None,
     ) -> None:
         if main_task not in output_dims:
             raise ValueError(
@@ -476,10 +476,11 @@ class DualCLAM(ModelABC):
         Optional mapping from task name to per-task keyword arguments used in
         loss computation. Recognized keys per task:
 
-        - ``unknown_class_index`` (int or None): class index to ignore in the
-          subtyping cross-entropy and to skip during instance clustering.
-          Defaults to ``0`` for the main subtyping task (matches
-          ``TCGASlideDataset.UNKNOWN_SUBTYPE_CLASS``).
+        - ``unknown_class_index`` (int or None): optional class index to
+          ignore in the subtyping cross-entropy and to skip during instance
+          clustering. Defaults to ``None`` — the dataset no longer emits an
+          Unknown class, so this is only needed if a downstream caller
+          explicitly mints one.
     enc_dim
         Tile encoder output dimensionality ``D``.
     hidden_dims
@@ -571,7 +572,7 @@ class DualCLAM(ModelABC):
         if not isinstance(main_task_kwargs_init, dict):
             raise TypeError(f"task_kwargs['{main_task}'] must be a dict if provided.")
         backbone_unknown_class_index = main_task_kwargs_init.get(
-            "unknown_class_index", 0
+            "unknown_class_index", None
         )
         if backbone_unknown_class_index is not None and (
             not isinstance(backbone_unknown_class_index, int)
@@ -928,18 +929,14 @@ class DualCLAM(ModelABC):
         """Dispatch the subtask mutational-signature loss based on the task name."""
         match subtask:
             case (
-                "sbs_regression"
-                | "dbs_regression"
-                | "id_regression"
-                | "cnv_regression"
+                "sbs_regression" | "dbs_regression" | "id_regression" | "cnv_regression"
             ):
                 # Targets are per-submitter normalized COSMIC exposure vectors
                 # (row-sum 1), so distributional KL is the appropriate loss.
+                # print(f"DEBUG: {subtask}, {prediction.shape}, {target.shape}")
                 return compute_distribution_kl_loss(prediction, target)
             case _:
-                raise ValueError(
-                    f"No default loss defined for subtask '{subtask}'."
-                )
+                raise ValueError(f"No default loss defined for subtask '{subtask}'.")
 
     def _compute_instance_loss(
         self: DualCLAM,

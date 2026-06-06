@@ -65,7 +65,11 @@ from augur.datasets.utils import (
 )
 from augur.models.slide_level.dual_clam import DualCLAM
 from augur.models.tile_level.tile_model import TileModel
-from augur.utils.config import load_aggregator_config, load_yaml_config
+from augur.utils.config import (
+    load_aggregator_config,
+    load_dataset_config,
+    load_yaml_config,
+)
 
 ATTENTION_HEAD_PREDICTED = "predicted"
 ATTENTION_HEAD_MEAN = "mean"
@@ -575,7 +579,7 @@ def _derive_slide_record(slide_path: str) -> SlideRecord:
 
 def compute_slide_attention(
     *,
-    data_config_path: str,
+    dataset_cfg: dict[str, Any],
     aggregator_cfg: dict[str, Any],
     slide_path: str,
     features_dir: str | None = None,
@@ -610,8 +614,10 @@ def compute_slide_attention(
 
     Parameters
     ----------
-    data_config_path:
-        Slide-dataset YAML.
+    dataset_cfg:
+        Merged dataset config dict (slide flavor — must include the
+        tile-extraction params under ``params``). Build it via
+        :func:`augur.utils.config.load_dataset_config`.
     aggregator_cfg:
         Merged aggregator config dict (must include ``params`` and
         ``checkpoint_path``). Build it via
@@ -645,8 +651,7 @@ def compute_slide_attention(
     if not os.path.isfile(slide_path):
         raise FileNotFoundError(f"Slide not found: {slide_path}")
 
-    data_cfg = load_yaml_config(data_config_path)
-    data_params = data_cfg.get("params", {})
+    data_params = dataset_cfg.get("params", {})
     if not isinstance(data_params, dict):
         raise TypeError("Slide-dataset config 'params' must be a dict.")
     root_dir = data_params.get("root_dir")
@@ -1664,7 +1669,7 @@ def export_attention_assets(
 
 def visualize(
     *,
-    data_config_path: str,
+    dataset_cfg: dict[str, Any],
     aggregator_cfg: dict[str, Any],
     tile_model_config_path: str,
     slide_path: str,
@@ -1689,7 +1694,7 @@ def visualize(
     """CLI entrypoint helper: compute attention, export assets, optionally figure."""
     logger = _setup_logger()
     result = compute_slide_attention(
-        data_config_path=data_config_path,
+        dataset_cfg=dataset_cfg,
         aggregator_cfg=aggregator_cfg,
         slide_path=slide_path,
         features_dir=features_dir,
@@ -1784,16 +1789,26 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     """Create the CLI parser for the visualization script."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--data-config",
-        default="configs/slide_dataset-TCGA-BRCA-test.yaml",
-        help="Slide-dataset YAML config (used for tile-extraction parameters and root_dir).",
+        "--dataset-config-dir",
+        default="configs/dataset",
+        help="Directory holding the partial dataset YAMLs (base-/flavor-).",
+    )
+    parser.add_argument(
+        "--dataset",
+        default="tcga-brca-test",
+        help=(
+            "Dataset base token (e.g. 'tcga-brca', 'tcga-brca-test'); selects "
+            "`base-{token}.yaml` for slide-flavor tile-extraction params."
+        ),
     )
     parser.add_argument(
         "--aggregator-config-dir",
         default="configs/aggregator",
         help=(
             "Directory holding the partial aggregator YAMLs (base-/subtask-/"
-            "variant-/add-on-/encoder-/pretext-/optimizer-/lr-scheduler-)."
+            "variant-/add-on-/encoder-/pretext-). Each base-{base}.yaml "
+            "extends ../optimizers.yaml for the shared optimizer + "
+            "LR-scheduler recipe."
         ),
     )
     parser.add_argument(
@@ -1804,11 +1819,17 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--subtask",
-        default="sbs",
-        choices=["sbs", "dbs", "id", "cnv"],
+        default=["sbs"],
+        nargs="*",
+        choices=["sbs", "dbs", "id", "cnv", "full"],
+        metavar="TOKEN",
         help=(
-            "Optional aggregator-level auxiliary subtask (COSMIC signature "
-            "regression). Pass '' to omit. Only valid with --base clam."
+            "Zero or more aggregator-level auxiliary subtasks (COSMIC signature "
+            "regression). Pass multiple tokens to stack heads, e.g. "
+            "`--subtask sbs dbs`. Pass `full` as a shorthand for all four. "
+            "Pass `--subtask` with no tokens to omit. The token order doesn't "
+            "matter — it's alphabetized inside the merge function. Only valid "
+            "with --base clam."
         ),
     )
     parser.add_argument(
@@ -1833,18 +1854,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default="full",
         choices=["full", "hematoxylin", "jigmag", "magnification", "none"],
         help="Encoder pretext task; selects pretext-{name}.yaml.",
-    )
-    parser.add_argument(
-        "--optimizer",
-        default="adamw",
-        choices=["adamw"],
-        help="Optimizer recipe partial.",
-    )
-    parser.add_argument(
-        "--lr-scheduler",
-        default="cosine",
-        choices=["cosine"],
-        help="LR-scheduler recipe partial.",
     )
     parser.add_argument(
         "--tile-model-config",
@@ -1965,31 +1974,46 @@ def main() -> None:
     args = _build_arg_parser().parse_args()
     roi_xywh = _parse_roi(list(args.roi))
 
-    # Infer features_dir from the data config + tile-model stem if not given.
-    features_dir = args.features_dir
-    if features_dir is None:
-        data_cfg = load_yaml_config(args.data_config)
-        data_params = data_cfg.get("params", {})
-        root_dir = (
-            data_params.get("root_dir") if isinstance(data_params, dict) else None
-        )
-        if isinstance(root_dir, str):
-            features_dir = _default_features_dir(root_dir, args.tile_model_config)
-
     aggregator_cfg = load_aggregator_config(
         args.aggregator_config_dir,
         base=args.base,
         variant=args.variant,
         add_on=(args.add_on or None),
-        subtask=(args.subtask or None),
+        subtasks=args.subtask,
         encoder=args.encoder,
         pretext=args.pretext,
-        optimizer=args.optimizer,
-        lr_scheduler=args.lr_scheduler,
     )
 
+    # Pull main_task + subtasks from the merged aggregator config so the
+    # datamodule config follows whichever main task / subtasks the model
+    # declares. The visualization script consumes only the dataset's
+    # slide-flavor tile-extraction params, but main_task / subtasks are
+    # still set on the merged dict for consistency.
+    model_params = aggregator_cfg.get("params", {})
+    if not isinstance(model_params, dict):
+        raise TypeError("Aggregator config 'params' must be a dict.")
+    main_task = model_params.get("main_task")
+    if not isinstance(main_task, str) or not main_task:
+        raise ValueError("Aggregator config must declare 'params.main_task'.")
+    model_subtasks = model_params.get("subtasks") or []
+
+    dataset_cfg = load_dataset_config(
+        args.dataset_config_dir,
+        base=args.dataset,
+        main_task=main_task,
+        subtasks=model_subtasks,
+    )
+
+    # Infer features_dir from the dataset's root_dir + tile-model stem if not
+    # explicitly given on the CLI.
+    features_dir = args.features_dir
+    if features_dir is None:
+        root_dir = dataset_cfg.get("params", {}).get("root_dir")
+        if isinstance(root_dir, str):
+            features_dir = _default_features_dir(root_dir, args.tile_model_config)
+
     visualize(
-        data_config_path=args.data_config,
+        dataset_cfg=dataset_cfg,
         aggregator_cfg=aggregator_cfg,
         tile_model_config_path=args.tile_model_config,
         slide_path=args.slide_path,

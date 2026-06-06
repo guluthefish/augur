@@ -1,0 +1,24 @@
+extends: ../optimizers.yaml
+name: TileModel
+params:
+  encoder:
+    name: ResNetEncoder
+    params:
+      block_name: Bottleneck
+      layers: [3, 4, 6, 3]
+      pretrained: resnet50
+  decoders:
+    tissue_segmentation:
+      name: UNetDecoder
+      params:
+        output_channels: 22
+        encoder_channels: [64, 256, 512, 1024, 2048]
+        decoder_channels: [512, 256, 128, 64]
+        dropout: 0.25
+        upsample_mode: bilinear
+        align_corners: true
+  task_weights:
+    tissue_segmentation: 3.0
+  task_kwargs:
+    tissue_segmentation:
+      unknown_class_index: 0

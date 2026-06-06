@@ -44,7 +44,13 @@ def load_subtyping_labels(
     logger: logging.Logger | None = None,
 ) -> tuple[dict[str, int], tuple[str, ...]]:
     """
-    Load slide-level subtyping labels with ``Unknown`` fixed at index 0.
+    Load slide-level subtyping labels.
+
+    Rows whose normalized subtype is :data:`UNKNOWN_SUBTYPE_CLASS` (missing /
+    placeholder values, or genuinely labelled ``Unknown``) are skipped, so
+    those submitters are absent from the returned mapping and their slides
+    are dropped downstream by ``_get_slide_splits``. Submitters with
+    conflicting real subtype labels across rows are likewise dropped.
 
     Parameters
     ----------
@@ -59,7 +65,8 @@ def load_subtyping_labels(
     -------
     tuple[dict[str, int], tuple[str, ...]]
         Mapping from ``submitter_id`` to class index, and a tuple of class
-        names in index order (``UNKNOWN_SUBTYPE_CLASS`` at index ``0``).
+        names in index order. Indices are assigned in the order each class
+        is first observed; ``Unknown`` is not represented.
     """
     labels_df = pd.read_table(labels_path, dtype=str)
     required_columns = {"submitter_id", "subtype"}
@@ -72,31 +79,39 @@ def load_subtyping_labels(
     submitter_ids = labels_df["submitter_id"].astype(str).str.strip()
     raw_values = labels_df["subtype"]
 
-    class_to_index: dict[str, int] = {UNKNOWN_SUBTYPE_CLASS: 0}
+    class_to_index: dict[str, int] = {}
     submitter_labels: dict[str, int] = {}
     raw_submitter_labels: dict[str, str] = {}
+    dropped_submitters: set[str] = set()
 
     for submitter_id, raw_label in zip(submitter_ids, raw_values):
-        if not submitter_id.startswith("TCGA-"):
+        if submitter_id in dropped_submitters:
             continue
 
         label = normalize_subtype_label(raw_label)
-        if label != UNKNOWN_SUBTYPE_CLASS and label not in class_to_index:
-            class_to_index[label] = len(class_to_index)
+        if label == UNKNOWN_SUBTYPE_CLASS:
+            # No informative label in this row; don't add the submitter. If a
+            # prior row already gave this submitter a real label, that label
+            # stays untouched.
+            continue
 
+        if label not in class_to_index:
+            class_to_index[label] = len(class_to_index)
         class_index = class_to_index[label]
+
         previous_label = raw_submitter_labels.get(submitter_id)
         if previous_label is not None and previous_label != label:
             if logger is not None:
                 logger.warning(
                     "Conflicting subtyping labels for submitter %s: %s vs %s. "
-                    "Using unknown class index 0.",
+                    "Dropping this submitter from the label table.",
                     submitter_id,
                     previous_label,
                     label,
                 )
-            submitter_labels[submitter_id] = 0
-            raw_submitter_labels[submitter_id] = UNKNOWN_SUBTYPE_CLASS
+            submitter_labels.pop(submitter_id, None)
+            raw_submitter_labels.pop(submitter_id, None)
+            dropped_submitters.add(submitter_id)
             continue
 
         submitter_labels[submitter_id] = class_index
@@ -104,5 +119,21 @@ def load_subtyping_labels(
 
     if not submitter_labels:
         raise RuntimeError(f"No TCGA subtyping labels were found in: {labels_path}")
+
+    # Drop classes that ended up with zero surviving submitters (introduced
+    # only via rows that were later dropped via conflict resolution), and
+    # densely renumber the survivors in first-seen order.
+    surviving_indices = set(submitter_labels.values())
+    if len(surviving_indices) != len(class_to_index):
+        ordered_names = [
+            name for name, idx in class_to_index.items() if idx in surviving_indices
+        ]
+        index_remap = {
+            class_to_index[name]: new_idx for new_idx, name in enumerate(ordered_names)
+        }
+        submitter_labels = {
+            sid: index_remap[idx] for sid, idx in submitter_labels.items()
+        }
+        class_to_index = {name: i for i, name in enumerate(ordered_names)}
 
     return submitter_labels, tuple(class_to_index)

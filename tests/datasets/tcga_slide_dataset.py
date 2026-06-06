@@ -5,6 +5,7 @@ import yaml
 
 from augur.datasets.cancer_subtyping import UNKNOWN_SUBTYPE_CLASS
 from augur.datasets.factory import get_dataset_from_config
+from augur.utils.config import load_dataset_config
 from augur.datasets.tcga_slide_dataset import (
     TCGASlideDataset,
     _SlideDataset,
@@ -134,9 +135,12 @@ def _test_TCGASlideDataset() -> None:
     """Test that TCGASlideDataset builds dataloaders with the expected batch shape."""
     print("Testing TCGASlideDataset ...")
 
-    config_path = "configs/slide_dataset-TCGA-BRCA-test.yaml"
-    with open(config_path, "r", encoding="utf-8") as file:
-        config = yaml.safe_load(file)
+    config = load_dataset_config(
+        "configs/dataset",
+        base="tcga-brca-test",
+        main_task="subtyping",
+        subtasks=["sbs_regression"],
+    )
 
     datamodule = get_dataset_from_config(config)
     assert isinstance(datamodule, TCGASlideDataset), (

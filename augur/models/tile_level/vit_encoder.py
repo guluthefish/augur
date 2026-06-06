@@ -11,7 +11,6 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
 from augur.models.model_abc import ModelABC
-from augur.models.utils import get_lr_scheduler_from_config, get_optimizer_from_config
 
 
 class ViTEncoder(ModelABC):
@@ -178,14 +177,8 @@ class ViTEncoder(ModelABC):
                 f"model_kwargs must be a dict of timm overrides. Got: {model_kwargs}"
             )
 
-        optimizer_factory, optimizer_kwargs = get_optimizer_from_config(
-            config.get("optimizer", {})
-        )
-        lr_scheduler_factory, lr_scheduler_kwargs, lr_scheduler_config = (
-            get_lr_scheduler_from_config(
-                config.get("lr_scheduler", config.get("scheduler", {}))
-            )
-        )
+        # ViTEncoder is a sub-component of TileModel; its optimizer config
+        # is owned by the parent and is ignored here.
 
         return ViTEncoder(
             model_name=model_name,
@@ -196,11 +189,6 @@ class ViTEncoder(ModelABC):
             drop_path_rate=drop_path_rate,
             attn_drop_rate=attn_drop_rate,
             model_kwargs=model_kwargs,
-            optimizer_factory=optimizer_factory,
-            optimizer_kwargs=optimizer_kwargs,
-            lr_scheduler_factory=lr_scheduler_factory,
-            lr_scheduler_kwargs=lr_scheduler_kwargs,
-            lr_scheduler_config=lr_scheduler_config,
         )
 
     def forward(  # pylint: disable=arguments-differ
@@ -230,6 +218,15 @@ class ViTEncoder(ModelABC):
         raise NotImplementedError(
             "ViTEncoder is an encoder-only Lightning module. Override "
             "model_step() in a task-specific subclass to compute a loss."
+        )
+
+    def configure_optimizers(self: ViTEncoder) -> None:
+        """Sub-component — its optimizer is owned by the parent TileModel."""
+        raise NotImplementedError(
+            "ViTEncoder is an encoder sub-component, not a top-level "
+            "Lightning module. Its optimizer is configured by the parent "
+            "TileModel; train the TileModel (or another top-level model that "
+            "wraps ViTEncoder) instead of this module directly."
         )
 
     def _extract_image_tensor(self: ViTEncoder, batch: Any) -> Tensor:

@@ -2,8 +2,8 @@
 #SBATCH --job-name=magnification
 #SBATCH --gres=gpu:2
 #SBATCH --partition=general
-#SBATCH --qos=medium
-#SBATCH --time=1-12:00:00
+#SBATCH --qos=short
+#SBATCH --time=04:00:00
 #SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
@@ -28,7 +28,7 @@ OUTDIR="$REPO/slurm/output"
 ENCODER="resnet50"
 PRETEXT="magnification"
 DATASET="tcga-brca"
-TRAINER="default"
+TRAINER="test"
 
 export PYTHONPATH="/work${PYTHONPATH:+:$PYTHONPATH}"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"

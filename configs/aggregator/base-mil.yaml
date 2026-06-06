@@ -1,3 +1,4 @@
+extends: ../optimizers.yaml
 name: EmbeddingMIL
 params:
   main_task: subtyping

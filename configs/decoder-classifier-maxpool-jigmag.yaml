@@ -1,7 +1,0 @@
-extends: common-params.yaml
-name: Classifier
-params:
-  hidden_dims: [512, 256, 128]
-  output_dim: 24
-  preproc: maxpool
-  dropout: 0.2

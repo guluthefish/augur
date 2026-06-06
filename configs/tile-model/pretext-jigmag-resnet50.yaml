@@ -1,0 +1,11 @@
+params:
+  decoders:
+    jigmag:
+      name: Classifier
+      params:
+        hidden_dims: [512, 256, 128]
+        output_dim: 24
+        preproc: maxpool
+        dropout: 0.2
+  task_weights:
+    jigmag: 1.0

@@ -16,11 +16,11 @@ from augur.datasets.tcga_feature_dataset import (
     _FeatureBagDataset,
 )
 from augur.datasets.cancer_subtyping import UNKNOWN_SUBTYPE_CLASS
+from augur.utils.config import load_dataset_config
 
 # Shared test fixtures: real test cohort + its precomputed feature cache.
 _TEST_ROOT_DIR = "data/TCGA-BRCA-test"
 _TEST_FEATURES_DIR = "data/TCGA-BRCA-test/features/resnet50-full"
-_TEST_CONFIG_PATH = "configs/feature_dataset-TCGA-BRCA-test.yaml"
 
 
 def _test_FeatureBagDataset() -> None:
@@ -29,8 +29,8 @@ def _test_FeatureBagDataset() -> None:
 
     assert os.path.isdir(_TEST_FEATURES_DIR), (
         f"Test feature cache missing at {_TEST_FEATURES_DIR}. "
-        "Run scripts/model_training/precompute_tile_features.py against "
-        "configs/slide_dataset-TCGA-BRCA-test.yaml first."
+        "Run scripts/model_training/precompute_tile_features.py against the "
+        "tcga-brca-test dataset base first."
     )
 
     portion_per_sample = 0.5
@@ -165,11 +165,15 @@ def _test_TCGAFeatureDataset() -> None:
     """TCGAFeatureDataset should build dataloaders with the expected batch shape."""
     print("Testing TCGAFeatureDataset ...")
 
-    assert os.path.isfile(
-        _TEST_CONFIG_PATH
-    ), f"Test config missing at {_TEST_CONFIG_PATH}."
-    with open(_TEST_CONFIG_PATH, "r", encoding="utf-8") as file:
-        config = yaml.safe_load(file)
+    config = load_dataset_config(
+        "configs/dataset",
+        base="tcga-brca-test",
+        main_task="subtyping",
+        subtasks=["sbs_regression"],
+        flavor="feature",
+        encoder="resnet50",
+        pretext="full",
+    )
 
     datamodule = get_dataset_from_config(config)
     assert isinstance(
