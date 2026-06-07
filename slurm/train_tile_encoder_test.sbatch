@@ -7,8 +7,8 @@
 #SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
-#SBATCH --output=slurm/output/tile-test-%j.out
-#SBATCH --error=slurm/output/tile-test-%j.err
+#SBATCH --output=slurm/output/test-tile-%j.out
+#SBATCH --error=slurm/output/test-tile-%j.err
 
 set -eu
 
