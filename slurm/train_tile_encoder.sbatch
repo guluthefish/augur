@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=magnification
+#SBATCH --job-name=full
 #SBATCH --gres=gpu:2
 #SBATCH --partition=general
 #SBATCH --qos=medium
@@ -7,8 +7,8 @@
 #SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
-#SBATCH --output=slurm/output/resnet50-magnification-%j.out
-#SBATCH --error=slurm/output/resnet50-magnification-%j.err
+#SBATCH --output=slurm/output/resnet50-full-%j.out
+#SBATCH --error=slurm/output/resnet50-full-%j.err
 
 set -eu
 
@@ -25,8 +25,21 @@ OUTDIR="$REPO/slurm/output"
 #   TRAINER  → configs/trainer/base-<TRAINER>.yaml
 # Edit the SBATCH --job-name / --output / --error above to match when
 # changing ENCODER or PRETEXT.
+#
+# Resume note: training auto-resumes from <checkpoint_dir>/last.ckpt. If a
+# refactor reorders model.parameters() (e.g. a decoder ModuleDict insertion
+# order changes), weight restore still succeeds but the index-keyed AdamW
+# state mispairs and the first optimizer.step() dies with a tensor-shape
+# RuntimeError. Fix without losing progress by remapping the optimizer state
+# to the current parameter order:
+#   python scripts/model_training/remap_optimizer_state.py \
+#       --checkpoint <dir>/last.ckpt --output <dir>/last.remapped.ckpt \
+#       --encoder "$ENCODER" --pretext "$PRETEXT"
+# then back up and swap last.remapped.ckpt -> last.ckpt. The script self-
+# verifies with a dry optimizer step and is lossless (weights + momentum +
+# epoch + LR schedule preserved).
 ENCODER="resnet50"
-PRETEXT="magnification"
+PRETEXT="full"
 DATASET="tcga-brca"
 TRAINER="default"
 
