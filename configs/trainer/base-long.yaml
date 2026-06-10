@@ -12,7 +12,7 @@ trainer:
   num_nodes: 1
   sync_batchnorm: true
   max_epochs: 100
-  max_time: "01:09:00:00"
+  max_time: "06:21:00:00"
   precision: 16-mixed
   default_root_dir: outputs/model_training
   log_every_n_steps: 5

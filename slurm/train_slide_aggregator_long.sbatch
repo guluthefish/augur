@@ -1,14 +1,15 @@
 #!/bin/sh
-#SBATCH --job-name=test-slide
+#SBATCH --job-name=lg-attn-full
+#SBATCH --array=0-4
 #SBATCH --gres=gpu:2
 #SBATCH --ntasks-per-node=2
 #SBATCH --partition=general
-#SBATCH --qos=short
-#SBATCH --time=04:00:00
+#SBATCH --qos=long
+#SBATCH --time=7-00:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --output=slurm/output/test-slide-%j.out
-#SBATCH --error=slurm/output/test-slide-%j.err
+#SBATCH --output=slurm/output/mil-attention-resnet50-full-fold%a-%A.out
+#SBATCH --error=slurm/output/mil-attention-resnet50-full-fold%a-%A.err
 #SBATCH --signal=TERM@180
 
 # train_slide_aggregator.py composes its configs from the partial-merge
@@ -24,11 +25,14 @@
 #   DATASET  → configs/dataset/base-<DATASET>.yaml
 #              (+ flavor-feature.yaml when PRECOMPUTED=1)
 #   TRAINER  → configs/trainer/base-<TRAINER>.yaml
-# Stratified group k-fold CV is required by the dataset YAML (params.n_folds);
-# this smoke-test script runs a single fold (FOLD_IDX, default 0). To exercise
-# a different fold, edit FOLD_IDX or submit as an array, e.g.
-#   sbatch --array=0-4 slurm/train_slide_aggregator_test.sbatch
-# (the SLURM_ARRAY_TASK_ID env var then drives FOLD_IDX automatically).
+# Long-running variant: --qos=long, --time=7-00:00:00, TRAINER=long (which sets
+# max_time ~3h below the 7-day limit so Lightning self-stops and checkpoints
+# cleanly before the SLURM kill). This script is submitted as a 5-element slurm
+# array (one task per fold). Each task reads its SLURM_ARRAY_TASK_ID and uses it
+# as --fold-idx; N_FOLDS must match params.n_folds in
+# configs/dataset/base-<DATASET>.yaml. Submit with
+# `sbatch slurm/train_slide_aggregator_long.sbatch` to launch all 5 folds, or
+# narrow the array (e.g. `sbatch --array=2 ...`) for a single fold.
 # The run name (and therefore checkpoint / log filename) is
 #   <BASE>[-<SUBTASKS>...]-<VARIANT>[-<ADD_ON>]-<ENCODER>-<PRETEXT>-fold<IDX>
 # Edit the SBATCH --job-name / --output / --error above to match when
@@ -56,13 +60,13 @@ PRETEXT="full"
 
 # --- Dataset + trainer recipe ------------------------------------------------
 DATASET="tcga-brca"
-TRAINER="test"    # default (production GPU/DDP) | test (fast-dev)
+TRAINER="long"    # default (production GPU/DDP) | test (fast-dev) | long (7-day)
 
 # --- Cross-validation --------------------------------------------------------
 # N_FOLDS must match params.n_folds in configs/dataset/base-<DATASET>.yaml;
 # both values are passed through so the slurm submission stays self-describing.
-# FOLD_IDX defaults to 0 for single-shot runs and is overridden by
-# SLURM_ARRAY_TASK_ID when this script is submitted as an array.
+# FOLD_IDX is driven by SLURM_ARRAY_TASK_ID (one fold per array task); when
+# this script is sourced outside an array it falls back to fold 0.
 N_FOLDS=5
 FOLD_IDX="${SLURM_ARRAY_TASK_ID:-0}"
 

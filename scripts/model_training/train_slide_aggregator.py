@@ -12,6 +12,7 @@ import torch.multiprocessing as mp
 from lightning.pytorch import Trainer, seed_everything
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.plugins.environments import SLURMEnvironment  # type: ignore
 from torch.nn.parameter import UninitializedParameter
 
 from augur.datasets.dataset_abc import DatasetABC
@@ -28,7 +29,7 @@ from augur.utils.config import (
 )
 from augur.utils.logger import setup_logger
 
-mp.set_sharing_strategy("file_system")
+mp.set_sharing_strategy("file_descriptor")
 
 
 def _setup_logger_for_training(log_dir: str) -> logging.Logger:
@@ -375,9 +376,7 @@ def _create_model(
     return model
 
 
-def _load_dataset(
-    dataset_config: dict[str, Any], logger: logging.Logger
-) -> DatasetABC:
+def _load_dataset(dataset_config: dict[str, Any], logger: logging.Logger) -> DatasetABC:
     """Instantiate the dataset datamodule from a merged config dict."""
     dataset = get_dataset_from_config(dataset_config)
     logger.info(
@@ -731,6 +730,12 @@ def train(
         _get_training_value(training_config, "num_sanity_val_steps", 2)
     )
     test_after_fit = bool(_get_training_value(training_config, "test_after_fit", True))
+    # Wall-clock budget (e.g. "DD:HH:MM:SS") from the trainer config. Set strictly
+    # below the sbatch --time so Lightning stops at a batch boundary, checkpoints,
+    # and exits cleanly before SLURM's time-limit SIGKILL would tear the process
+    # down mid-writeback. This is a launcher-agnostic Timer, so it is safe no
+    # matter how the ranks are spawned. Resumes from last.ckpt on the next run.
+    max_time = _get_training_value(training_config, "max_time", None)
 
     os.makedirs(default_root_dir, exist_ok=True)
     logger = _setup_logger_for_training(os.path.join(default_root_dir, "logs"))
@@ -794,6 +799,18 @@ def train(
     if bool(_get_training_value(training_config, "enable_lr_monitor", True)):
         callbacks.append(LearningRateMonitor(logging_interval="epoch"))  # type: ignore
 
+    # The sbatch launches one srun task per GPU (--ntasks-per-node=2 with
+    # devices=2), so SLURM manages the DDP ranks and SLURMEnvironment is the
+    # correct cluster environment. Disable Lightning's auto-requeue SIGTERM
+    # handler: at the time limit SIGTERM then causes a prompt, clean exit (and
+    # apptainer terminates) instead of being "bypassed" until SLURM escalates to
+    # SIGKILL mid-write. We rely on `max_time` above for the clean, checkpointed
+    # stop before the limit. (Guarded by SLURM_JOB_ID so non-SLURM/local runs are
+    # unaffected.)
+    plugins: list[Any] = []
+    if os.environ.get("SLURM_JOB_ID"):
+        plugins.append(SLURMEnvironment(auto_requeue=False))
+
     trainer = Trainer(
         default_root_dir=str(default_root_dir),
         accelerator=accelerator,
@@ -803,6 +820,8 @@ def train(
         sync_batchnorm=sync_batchnorm,
         precision=precision,  # type: ignore
         max_epochs=max_epochs,
+        max_time=max_time,
+        plugins=plugins,  # type: ignore
         logger=csv_logger,
         callbacks=callbacks,  # type: ignore
         log_every_n_steps=log_every_n_steps,
@@ -871,9 +890,7 @@ def main() -> None:
     """CLI entrypoint for slide-aggregator training."""
     args = _build_arg_parser().parse_args()
 
-    aggregator_config_dir = os.path.join(
-        args.config_dir, args.aggregator_config_subdir
-    )
+    aggregator_config_dir = os.path.join(args.config_dir, args.aggregator_config_subdir)
     dataset_config_dir = os.path.join(args.config_dir, args.dataset_config_subdir)
     trainer_config_dir = os.path.join(args.config_dir, args.trainer_config_subdir)
 

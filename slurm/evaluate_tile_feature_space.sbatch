@@ -32,7 +32,6 @@ srun apptainer exec \
     -B "$REPO:/work" \
     -B "$OUTDIR:/out" \
     -B "$tmpdir:/tmp" \
-    -B "$tmpdir:/dev/shm" \
     --pwd /work \
     "$IMG" \
     /opt/conda/envs/augur/bin/python \

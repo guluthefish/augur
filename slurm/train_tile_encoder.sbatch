@@ -9,8 +9,11 @@
 #SBATCH --mem=64G
 #SBATCH --output=slurm/output/resnet50-full-%j.out
 #SBATCH --error=slurm/output/resnet50-full-%j.err
+#SBATCH --signal=TERM@180
 
 set -eu
+
+ulimit -n 65536
 
 REPO="/tudelft.net/staff-umbrella/IMGEN"
 IMG="$REPO/containers/augur.sif"
@@ -108,7 +111,6 @@ srun apptainer exec \
     -B "$REPO:/work" \
     -B "$OUTDIR:/out" \
     -B "$tmpdir:/tmp" \
-    -B "$tmpdir:/dev/shm" \
     --env HF_HOME=/tmp/huggingface \
     --env NCCL_P2P_DISABLE=1 \
     --env NCCL_IB_DISABLE=1 \

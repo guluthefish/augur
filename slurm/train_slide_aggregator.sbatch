@@ -1,15 +1,16 @@
 #!/bin/sh
-#SBATCH --job-name=attn-full
+#SBATCH --job-name=clam-mb
 #SBATCH --array=0-4
 #SBATCH --gres=gpu:2
-#SBATCH --ntasks=1
+#SBATCH --ntasks-per-node=2
 #SBATCH --partition=general
 #SBATCH --qos=medium
 #SBATCH --time=1-12:00:00
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --output=slurm/output/mil-attention-resnet50-full-fold%a-%A.out
-#SBATCH --error=slurm/output/mil-attention-resnet50-full-fold%a-%A.err
+#SBATCH --output=slurm/output/clam-mb-resnet50-full-fold%a-%A.out
+#SBATCH --error=slurm/output/clam-mb-resnet50-full-fold%a-%A.err
+#SBATCH --signal=TERM@180
 
 # train_slide_aggregator.py composes its configs from the partial-merge
 # helpers in augur/utils/config.py. The tokens below feed:
@@ -36,6 +37,8 @@
 
 set -eu
 
+ulimit -n 65536
+
 REPO="/tudelft.net/staff-umbrella/IMGEN"
 IMG="$REPO/containers/augur.sif"
 OUTDIR="$REPO/slurm/output"
@@ -43,10 +46,10 @@ OUTDIR="$REPO/slurm/output"
 CONFIG_DIR="$REPO/configs"
 
 # --- Aggregator architecture --------------------------------------------------
-BASE="mil"           # clam | mil
-VARIANT="attention"  # sb | mb (clam) ; mean | max | attention (mil)
+BASE="clam"          # clam | mil
+VARIANT="mb"         # sb | mb (clam) ; mean | max | attention (mil)
 ADD_ON=""            # "" | gated   (only with attention-based variants)
-SUBTASKS=""          # "" or e.g. "sbs" or "sbs dbs"  (only with BASE=clam)
+SUBTASKS="full"      # "" or e.g. "sbs" or "sbs dbs"  (only with BASE=clam)
 
 # --- Encoder used to extract features (must match the precompute job) --------
 ENCODER="resnet50"
@@ -118,10 +121,7 @@ srun apptainer exec \
     --env NCCL_DEBUG=INFO \
     --pwd /work \
     "$IMG" \
-    /opt/conda/envs/augur/bin/torchrun \
-        --standalone \
-        --nnodes=1 \
-        --nproc_per_node=2 \
+    /opt/conda/envs/augur/bin/python \
         scripts/model_training/train_slide_aggregator.py \
             --config-dir "$CONFIG_DIR" \
             --base "$BASE" \

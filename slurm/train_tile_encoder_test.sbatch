@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH --job-name=tile-test
+#SBATCH --job-name=test-tile
 #SBATCH --gres=gpu:2
 #SBATCH --partition=general
 #SBATCH --qos=short
@@ -95,7 +95,6 @@ srun apptainer exec \
     -B "$REPO:/work" \
     -B "$OUTDIR:/out" \
     -B "$tmpdir:/tmp" \
-    -B "$tmpdir:/dev/shm" \
     --env HF_HOME=/tmp/huggingface \
     --env NCCL_P2P_DISABLE=1 \
     --env NCCL_IB_DISABLE=1 \

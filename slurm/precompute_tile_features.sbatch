@@ -114,7 +114,6 @@ srun --ntasks=1 apptainer exec \
     -B "$REPO:/work" \
     -B "$OUTDIR:/out" \
     -B "$tmpdir:/tmp" \
-    -B "$tmpdir:/dev/shm" \
     --env HF_HOME=/tmp/huggingface \
     --pwd /work \
     "$IMG" \
