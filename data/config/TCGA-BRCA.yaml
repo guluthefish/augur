@@ -19,8 +19,14 @@ tcga_user_token_file: False
 validate_file_size: True
 validate_file_md5: False
 
-# Number of parallel processes for downloading files with gdc client (if using multiple manifest files)
+# Number of parallel download workers within a single gdc-client command (passed as -n)
 n_processes: 8
+
+# Number of gdc-client commands to run concurrently (one per split manifest).
+# 1 = sequential (the previous behavior: finish one split manifest before the next).
+# Total concurrent connections is roughly n_commands * n_processes, so keep the
+# product modest (~16-20) to avoid GDC throttling / connection resets.
+n_commands: 4
 
 # --- Parameters for extracting SBS labels ---
 min_count: 3

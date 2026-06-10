@@ -1,6 +1,7 @@
 """Download GDC files using gdc-client based on prepared manifest TSVs."""
 
 from argparse import ArgumentParser
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import io
 import logging
 import os
@@ -458,10 +459,74 @@ def split_manifest(
     return splitted_files
 
 
+def _run_one_manifest(
+    gdc_client: str,
+    manifest: str,
+    manifest_dir: str,
+    raw_data_dir: str,
+    gdc_log_dir: str,
+    n_processes: int,
+    tcga_user_token_file: Optional[str],
+    logger: logging.Logger,
+) -> tuple[int, str]:
+    """
+    Run `gdc-client download` for a single split manifest.
+
+    Designed to be called concurrently (one thread per manifest). The heavy
+    work happens in the external gdc-client subprocess, so each thread spends
+    its time blocked on I/O rather than holding the GIL.
+
+    Returns
+    -------
+    tuple[int, str]
+        The gdc-client process exit code and the path to its log file.
+    """
+    manifest_path = os.path.join(manifest_dir, manifest)
+    gdc_log_path = os.path.join(
+        gdc_log_dir, f"{os.path.splitext(manifest)[0]}.gdc-client.log"
+    )
+
+    args = [
+        gdc_client,
+        "download",
+        "-m",
+        str(manifest_path),
+        "-n",
+        str(n_processes),
+        "-d",
+        str(raw_data_dir),
+        "--log-file",
+        str(gdc_log_path),
+    ]
+    if tcga_user_token_file is not None:
+        args += ["-t", str(tcga_user_token_file)]
+
+    logger.info("Running gdc-client for manifest=%s", manifest)
+    logger.info("gdc-client log: %s", str(gdc_log_path))
+    logger.info("Command: %s", " ".join(args))
+
+    # Stream subprocess output into the logger (stdout+stderr merged). The
+    # manifest prefix keeps interleaved lines from concurrent commands readable.
+    proc = subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        logger.info("[gdc-client:%s] %s", manifest, line.rstrip("\n"))
+
+    return proc.wait(), gdc_log_path
+
+
 def download_data(
     root_dir: str,
     splitted_manifests: list[str],
     n_processes: int = 8,
+    n_commands: int = 1,
     tcga_user_token_file: Optional[str] = None,
     logger: Optional[logging.Logger] = None,
     fail_fast: bool = True,
@@ -472,6 +537,10 @@ def download_data(
     For each manifest in `splitted_manifests`, this function runs:
         gdc-client download -m <manifest_path> -n <n_processes> \
             -d <raw_data_dir> --log-file <gdc_log>
+
+    Up to `n_commands` of these run concurrently via a thread pool, so a manifest
+    no longer waits for the previous one to finish before starting. As each
+    command completes, the next queued manifest is dispatched.
 
     If `tcga_user_token_file` is provided, it is passed as `-t <token>` for controlled-access data.
 
@@ -494,7 +563,13 @@ def download_data(
     splitted_manifests:
         List of manifest filenames under <root_dir>/manifests/ready_for_download/.
     n_processes:
-        Number of parallel download processes/connections for `gdc-client`.
+        Number of parallel download workers within a single `gdc-client`
+        command (passed as `-n`).
+    n_commands:
+        Number of `gdc-client` commands to run concurrently (one per split
+        manifest). With ``n_commands=1`` the manifests download sequentially
+        (the previous behavior). Total concurrent connections is roughly
+        ``n_commands * n_processes``.
     tcga_user_token_file:
         Optional path to a GDC token file for controlled-access downloads.
     logger:
@@ -530,74 +605,75 @@ def download_data(
     gdc_log_dir = os.path.join(log_dir, "gdc-client")
     os.makedirs(gdc_log_dir, exist_ok=True)
 
+    n_commands = max(1, int(n_commands))
+    if splitted_manifests:
+        n_commands = min(n_commands, len(splitted_manifests))
+
     logger.info(
-        "Starting downloads: manifests=%d, n_processes=%d, raw_data_dir=%s",
+        "Starting downloads: manifests=%d, n_commands=%d, n_processes=%d "
+        "(~%d concurrent connections), raw_data_dir=%s",
         len(splitted_manifests),
+        n_commands,
         n_processes,
+        n_commands * n_processes,
         str(raw_data_dir),
     )
 
-    for manifest in splitted_manifests:
-        manifest_path = os.path.join(manifest_dir, manifest)
+    failures: list[str] = []
 
-        gdc_log_path = os.path.join(
-            gdc_log_dir, f"{os.path.splitext(manifest)[0]}.gdc-client.log"
-        )
-
-        args = [
-            gdc_client,
-            "download",
-            "-m",
-            str(manifest_path),
-            "-n",
-            str(n_processes),
-            "-d",
-            str(raw_data_dir),
-            "--log-file",
-            str(gdc_log_path),
-        ]
-        if tcga_user_token_file is not None:
-            args += ["-t", str(tcga_user_token_file)]
-
-        logger.info("Running gdc-client for manifest=%s", manifest)
-        logger.info("gdc-client log: %s", str(gdc_log_path))
-        logger.info("Command: %s", " ".join(args))
-
-        # Stream subprocess output into the logger (stdout+stderr merged).
-        proc = subprocess.Popen(
-            args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
-
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            logger.info("[gdc-client] %s", line.rstrip("\n"))
-
-        rc = proc.wait()
-
-        if rc != 0:
-            logger.error(
-                "gdc-client failed (exit=%d) for manifest=%s. See: %s",
-                rc,
+    # Dispatch up to `n_commands` gdc-client subprocesses at once. The pool keeps
+    # `n_commands` slots busy, starting the next queued manifest as soon as one
+    # finishes, rather than waiting for the whole batch.
+    with ThreadPoolExecutor(max_workers=n_commands) as executor:
+        future_to_manifest = {
+            executor.submit(
+                _run_one_manifest,
+                gdc_client,
                 manifest,
-                str(gdc_log_path),
-            )
-            if fail_fast:
+                manifest_dir,
+                raw_data_dir,
+                gdc_log_dir,
+                n_processes,
+                tcga_user_token_file,
+                logger,
+            ): manifest
+            for manifest in splitted_manifests
+        }
+
+        for future in as_completed(future_to_manifest):
+            manifest = future_to_manifest[future]
+
+            try:
+                rc, gdc_log_path = future.result()
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("gdc-client raised an error for manifest=%s", manifest)
+                failures.append(manifest)
+                if fail_fast:
+                    raise
+                continue
+
+            if rc != 0:
                 logger.error(
                     "gdc-client failed (exit=%d) for manifest=%s. See: %s",
                     rc,
                     manifest,
                     str(gdc_log_path),
                 )
-                raise RuntimeError(
-                    f"gdc-client failed (exit={rc}) for manifest={manifest}. See: {gdc_log_path}"
-                )
-            continue
+                failures.append(manifest)
+                if fail_fast:
+                    raise RuntimeError(
+                        f"gdc-client failed (exit={rc}) for manifest={manifest}. See: {gdc_log_path}"
+                    )
+                continue
 
-        logger.info("Finished manifest=%s successfully.", manifest)
+            logger.info("Finished manifest=%s successfully.", manifest)
+
+    if failures:
+        logger.error(
+            "gdc-client failed for %d manifest(s): %s",
+            len(failures),
+            ", ".join(failures),
+        )
 
 
 def reorder_data(
@@ -829,10 +905,16 @@ def main():
     n_processes = config["n_processes"]
     if not isinstance(n_processes, int) or n_processes <= 0:
         raise ValueError("n_processes must be a positive integer")
+
+    n_commands = config.get("n_commands", 1)
+    if not isinstance(n_commands, int) or n_commands <= 0:
+        raise ValueError("n_commands must be a positive integer")
+
     download_data(
         root_dir,
         splitted_manifests,
         n_processes=n_processes,
+        n_commands=n_commands,
         tcga_user_token_file=token_path,
     )
     reorder_data(root_dir, "gdc_manifest.merged.txt")
