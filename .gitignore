@@ -246,7 +246,6 @@ __marimo__/
 # Data
 data/*
 !data/config
-!data/TCGA-BRCA
 
 # Docker
 *.sif
