@@ -6,14 +6,23 @@ test_after_fit: true
 enable_lr_monitor: true
 trainer:
   accelerator: gpu
-  devices: 1
+  # `auto` resolves to the GPUs visible to each task. Under the sbatch's
+  # --ntasks-per-node=2 / gpu:2 that is 2, matching the SLURM-managed DDP rank
+  # count (devices must equal --ntasks-per-node, else rank 1 indexes a missing
+  # GPU and the job errors at startup).
+  devices: auto
   strategy: ddp
   num_nodes: 1
   sync_batchnorm: true
   max_epochs: 50
   max_time: "03:00:00"
   precision: 16-mixed
-  default_root_dir: outputs/model_training
+  # Smoke-test isolation: never resume the production checkpoint (a fast_dev_run
+  # that resumes a mid-training last.ckpt errors), and write to a throwaway dir
+  # so a test run can't read or clobber the real checkpoints/logs. Production
+  # configs (base-default / base-long) keep the default auto-resume behaviour.
+  resume_from: "none"
+  default_root_dir: outputs/smoke-test
   log_every_n_steps: 5
   fast_dev_run: true
   accumulate_grad_batches: 4
@@ -28,4 +37,4 @@ checkpoint:
   save_last: true
   every_n_epochs: 1
 logger:
-  save_dir: outputs/model_training/lightning_logs
+  save_dir: outputs/smoke-test/lightning_logs
