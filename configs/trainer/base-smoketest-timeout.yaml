@@ -1,8 +1,11 @@
-# Fast-dev trainer recipe for sanity-checking the training
-# pipeline. One epoch. `fast_dev_run: true` short-circuits Lightning
-# to a single train + val batch.
+# Timeout-path smoke test. Unlike base-test (fast_dev_run, which exits after one
+# batch and never reaches a time limit), this recipe TRAINS CONTINUOUSLY so it
+# actually hits `max_time`, letting you verify the exact path that used to crash
+# nodes: the job self-stops at a batch boundary, writes a checkpoint, and
+# Apptainer exits cleanly *before* the SLURM --time SIGKILL.
+
 seed: 42
-test_after_fit: true
+test_after_fit: false
 enable_lr_monitor: true
 trainer:
   accelerator: gpu
@@ -10,13 +13,13 @@ trainer:
   strategy: auto
   num_nodes: 1
   sync_batchnorm: true
-  max_epochs: 50
-  max_time: "02:00:00"
+  max_epochs: 1000
+  max_time: "00:00:05:00"
   precision: 16-mixed
   resume_from: "none"
   default_root_dir: outputs/smoke-test
   log_every_n_steps: 5
-  fast_dev_run: true
+  fast_dev_run: false
   accumulate_grad_batches: 4
   limit_train_batches: 1.0
   limit_val_batches: 1.0
@@ -25,7 +28,7 @@ trainer:
 checkpoint:
   monitor: val/loss
   mode: min
-  save_top_k: 5
+  save_top_k: 1
   save_last: true
   every_n_epochs: 1
 logger:

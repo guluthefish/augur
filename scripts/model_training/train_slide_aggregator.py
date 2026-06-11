@@ -555,7 +555,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--trainer",
         default="test",
-        choices=["default", "test", "cpu"],
+        choices=["default", "test", "long", "cpu", "smoketest-timeout"],
         help=(
             "Trainer recipe; selects `base-{name}.yaml` under the trainer "
             "partial dir. Default is `test` for safe interactive runs; pass "
