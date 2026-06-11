@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Launch tile-encoder training on the pod.
-# Usage:   bash cloud/03_run_train.sh <encoder> <pretext> <dataset> <trainer>
-# Example: bash cloud/03_run_train.sh resnet50 full tcga-brca long
-#          bash cloud/03_run_train.sh prov-gigapath full tcga-brca long   # needs .env with HF_TOKEN
+# Usage:   bash cloud/03_run_train_tile.sh <encoder> <pretext> <dataset> <trainer>
+# Example: bash cloud/03_run_train_tile.sh resnet50 full tcga-brca long
+#          bash cloud/03_run_train_tile.sh prov-gigapath full tcga-brca long   # needs .env with HF_TOKEN
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

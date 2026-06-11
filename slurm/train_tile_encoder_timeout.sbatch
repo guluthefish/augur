@@ -18,15 +18,6 @@
 # boundary, checkpoints, and Apptainer exits cleanly *before* any SLURM SIGKILL.
 # It writes to a throwaway dir and never resumes, so it cannot touch the real
 # checkpoints/logs. Run it on an EXCLUSIVE node: `sbatch --exclusive ...`.
-#
-# Why --time=02:00:00 even though max_time is only 5 min:
-#   Lightning's `max_time` is a Timer that starts at on_train_start, i.e. AFTER
-#   datamodule setup() / tile sampling. In slurm/output/*.out that setup took
-#   ~23-69 min (full TCGA-BRCA tile sampling, NOT counted by max_time). So the
-#   job wall clock = setup (~30-70 min) + ~5 min training + checkpoint + margin.
-#   --time is set well above that worst case so `max_time` (not the SLURM limit)
-#   is what stops training. If your setup logs run longer, raise --time.
-#   (Tip: a smaller --dataset shortens setup if you want a faster turnaround.)
 
 set -eu
 
