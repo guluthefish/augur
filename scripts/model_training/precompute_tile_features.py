@@ -614,6 +614,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     """Main entry point."""
+    torch.set_float32_matmul_precision("high")
     args = parse_args()
 
     os.makedirs(args.log_dir, exist_ok=True)

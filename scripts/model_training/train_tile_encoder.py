@@ -704,6 +704,7 @@ def _compose_run_name(encoder: str, pretexts: list[str]) -> str:
 
 def main() -> None:
     """CLI entrypoint for tile-model training."""
+    torch.set_float32_matmul_precision("high")
     args = _build_arg_parser().parse_args()
 
     tile_model_config_dir = os.path.join(args.config_dir, args.tile_model_config_subdir)

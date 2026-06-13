@@ -888,6 +888,7 @@ def train(
 
 def main() -> None:
     """CLI entrypoint for slide-aggregator training."""
+    torch.set_float32_matmul_precision("high")
     args = _build_arg_parser().parse_args()
 
     aggregator_config_dir = os.path.join(args.config_dir, args.aggregator_config_subdir)
