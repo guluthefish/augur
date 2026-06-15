@@ -845,7 +845,10 @@ def train(
         # worker fork count, which is what otherwise OOMs the cgroup at the
         # fit -> test boundary on whole-slide bags. Force num_workers=0 so the
         # test DataLoader runs in-process and we don't fork a fat parent.
-        test_ckpt_path = "best" if checkpoint_callback.best_model_path else None
+        # The fit trainer's ModelCheckpoint owns best_model_path; pass it as
+        # an absolute path because the test trainer has no ModelCheckpoint
+        # callback and cannot resolve ckpt_path="best" on its own.
+        test_ckpt_path = checkpoint_callback.best_model_path or None
         datamodule.num_workers = 0
         datamodule.persistent_workers = False
         datamodule.prefetch_factor = None
