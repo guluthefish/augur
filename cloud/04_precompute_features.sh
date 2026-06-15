@@ -23,7 +23,7 @@ export PATH="$MAMBA_ROOT_PREFIX/bin:$PATH"
 ENCODER="${ENCODER:-resnet50}"
 DATASET="${DATASET:-tcga-brca}"
 PRECISION="${PRECISION:-float16}"   # frozen forward -> fp16 is faster & lighter
-CHUNK_SIZE="${CHUNK_SIZE:-128}"     # tiles per GPU forward pass
+CHUNK_SIZE="${CHUNK_SIZE:-256}"     # tiles per GPU forward pass
 DEVICE="${DEVICE:-cuda}"
 
 # Pretext variants to precompute (one trained encoder each). Override via arguments.

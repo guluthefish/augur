@@ -6,7 +6,7 @@ params:
   train_budget: 0.4
   val_budget: 0.2
   test_budget: 0.4
-  batch_size: 16
+  batch_size: 128
   train_fraction: 0.70
   val_fraction: 0.15
   test_fraction: 0.15

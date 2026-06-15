@@ -151,13 +151,13 @@ class _FeatureBagDataset(Dataset[dict[str, Any]]):
         current_index = index
         for attempt in range(self._GETITEM_MAX_RETRIES + 1):
             slide_record = self.slide_records[current_index]
-            self.logger.info(
-                "[pid=%d] __getitem__ start: index=%d attempt=%d slide_id=%s",
-                worker_pid,
-                current_index,
-                attempt,
-                slide_record.slide_id,
-            )
+            # self.logger.info(
+            #     "[pid=%d] __getitem__ start: index=%d attempt=%d slide_id=%s",
+            #     worker_pid,
+            #     current_index,
+            #     attempt,
+            #     slide_record.slide_id,
+            # )
             start_time = time.monotonic()
             try:
                 sample = self._load_sample(slide_record)
@@ -185,14 +185,14 @@ class _FeatureBagDataset(Dataset[dict[str, Any]]):
                 continue
 
             elapsed = time.monotonic() - start_time
-            self.logger.info(
-                "[pid=%d] __getitem__ done: index=%d slide_id=%s K=%d elapsed=%.3fs",
-                worker_pid,
-                current_index,
-                slide_record.slide_id,
-                int(sample["image"].shape[0]),
-                elapsed,
-            )
+            # self.logger.info(
+            #     "[pid=%d] __getitem__ done: index=%d slide_id=%s K=%d elapsed=%.3fs",
+            #     worker_pid,
+            #     current_index,
+            #     slide_record.slide_id,
+            #     int(sample["image"].shape[0]),
+            #     elapsed,
+            # )
             return sample
 
         raise RuntimeError("unreachable in _FeatureBagDataset.__getitem__")
@@ -249,8 +249,8 @@ class _FeatureBagDataset(Dataset[dict[str, Any]]):
             "base_mpp": float(payload.get("base_mpp", 0.0)),
             "tile_size": int(payload.get("tile_size", 0)),
             "image_size": int(payload.get("image_size", 0)),
-            "tile_centers": sampled_centers,          # (K, 2) long
-            "selected_indices": index_tensor,         # (K,)  long
+            "tile_centers": sampled_centers,  # (K, 2) long
+            "selected_indices": index_tensor,  # (K,)  long
             "k_total": int(k_total),
         }
 
@@ -268,9 +268,7 @@ class _FeatureBagDataset(Dataset[dict[str, Any]]):
                 )
             subtask_vector = task_submitter_labels[slide_record.submitter_id]
             sample[subtask] = {
-                "target": torch.from_numpy(
-                    np.ascontiguousarray(subtask_vector)
-                ).float()
+                "target": torch.from_numpy(np.ascontiguousarray(subtask_vector)).float()
             }
 
         return sample
@@ -415,9 +413,7 @@ class TCGAFeatureDataset(DatasetABC):
                     )
 
         if not isinstance(features_dir, str) or not features_dir:
-            raise ValueError(
-                "features_dir is required and must be a non-empty string."
-            )
+            raise ValueError("features_dir is required and must be a non-empty string.")
         if not os.path.isdir(features_dir):
             raise FileNotFoundError(
                 f"features_dir does not exist or is not a directory: {features_dir}"
@@ -442,9 +438,7 @@ class TCGAFeatureDataset(DatasetABC):
         ):
             raise ValueError("max_slides must be a positive integer or None.")
         if (n_folds is None) != (fold_idx is None):
-            raise ValueError(
-                "n_folds and fold_idx must both be set or both be None."
-            )
+            raise ValueError("n_folds and fold_idx must both be set or both be None.")
         if n_folds is None:
             # Fraction mode: train/val partition the whole cohort together
             # with an implicit test = 1 - train - val.
@@ -453,9 +447,7 @@ class TCGAFeatureDataset(DatasetABC):
                     f"train_fraction must be in [0, 1], got {train_fraction}."
                 )
             if not 0.0 <= val_fraction <= 1.0:
-                raise ValueError(
-                    f"val_fraction must be in [0, 1], got {val_fraction}."
-                )
+                raise ValueError(f"val_fraction must be in [0, 1], got {val_fraction}.")
             if train_fraction + val_fraction >= 1.0:
                 raise ValueError(
                     "train_fraction + val_fraction must be < 1 so a positive "
@@ -468,11 +460,7 @@ class TCGAFeatureDataset(DatasetABC):
             # the trainval pool and must sum to 1.
             if not isinstance(n_folds, int) or n_folds < 2:
                 raise ValueError(f"n_folds must be an integer >= 2, got {n_folds}.")
-            if (
-                not isinstance(fold_idx, int)
-                or fold_idx < 0
-                or fold_idx >= n_folds
-            ):
+            if not isinstance(fold_idx, int) or fold_idx < 0 or fold_idx >= n_folds:
                 raise ValueError(
                     f"fold_idx must be an integer in [0, n_folds) = [0, {n_folds}), "
                     f"got {fold_idx}."
