@@ -27,10 +27,10 @@ export MAMBA_ROOT_PREFIX="${MAMBA_ROOT_PREFIX:-/workspace/micromamba}"
 export PATH="$MAMBA_ROOT_PREFIX/bin:$PATH"
 
 # --- aggregator architecture (defaults reproduce clam-full-mb-gated, as in 05) ---
-BASE="${BASE:-clam}"          # clam | mil
-VARIANT="${VARIANT:-mb}"      # clam: sb|mb ; mil: mean|max|attention
-ADD_ON="${ADD_ON:-gated}"     # "" | gated   (attention-based variants only)
-SUBTASK="${SUBTASK:-full}"    # "" | "sbs dbs id cnv" | full  (clam only; needs signature labels)
+BASE="${BASE}"                # clam | mil
+VARIANT="${VARIANT}"          # clam: sb|mb ; mil: mean|max|attention
+ADD_ON="${ADD_ON}"            # "" | gated   (attention-based variants only)
+SUBTASK="${SUBTASK}"          # "" | "sbs dbs id cnv" | full  (clam only; needs signature labels)
 ENCODER="${ENCODER:-resnet50}"
 DATASET="${DATASET:-tcga-brca}"
 N_FOLDS="${N_FOLDS:-5}"       # must match params.n_folds in configs/dataset/base-<dataset>.yaml
