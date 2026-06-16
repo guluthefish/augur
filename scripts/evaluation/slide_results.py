@@ -166,6 +166,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--num-workers", type=int, default=0)
+    parser.add_argument(
+        "--portion-per-sample",
+        type=float,
+        default=1.0,
+        help=(
+            "Fraction of each slide's cached tiles to use at inference. "
+            "Defaults to 1.0 (full bag) so predictions are deterministic and "
+            "use every tile; set < 1.0 to subsample like training."
+        ),
+    )
 
     return parser
 
@@ -506,6 +516,16 @@ def main() -> None:
         n_folds=args.n_folds,
         fold_idx=args.fold_idx,
     )
+
+    # Evaluate on full bags by default: predictions should use every cached
+    # tile and be deterministic, unlike training which subsamples
+    # (portion_per_sample < 1). max_tiles_per_bag is cleared so nothing caps
+    # the bag; the slide flavor simply ignores it.
+    dataset_params = dataset_config.setdefault("params", {})
+    if not isinstance(dataset_params, dict):
+        raise TypeError("Merged dataset config 'params' must be a dict.")
+    dataset_params["portion_per_sample"] = args.portion_per_sample
+    dataset_params["max_tiles_per_bag"] = None
 
     run_name = _resolve_run_name_and_fold(
         model_config,

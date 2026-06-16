@@ -323,8 +323,8 @@ def _build_test_records_with_portion(
     splits = datamodule._get_slide_splits()  # pylint: disable=protected-access
     test_slides = splits["test"]
     _, _, roi_df = (
-        datamodule._load_tissue_metadata()
-    )  # pylint: disable=protected-access
+        datamodule._load_tissue_metadata()  # pylint: disable=protected-access
+    )
     roi_groups: dict[str, pd.DataFrame] = {
         str(slide_name): group.reset_index(drop=True)
         for slide_name, group in roi_df.groupby("slide_name", sort=False)

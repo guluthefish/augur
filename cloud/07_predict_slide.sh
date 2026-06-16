@@ -18,6 +18,7 @@
 #   FOLD=0 bash cloud/07_predict_slide.sh full              # one fold of one pretext
 #   SUBTASK="" bash cloud/07_predict_slide.sh               # plain CLAM (no signature subtasks)
 #   SPLIT=val bash cloud/07_predict_slide.sh full           # predict on the val split instead
+#   PORTION=0.25 bash cloud/07_predict_slide.sh full        # subsample tiles (default 1.0 = full bag)
 #   BASE=mil VARIANT=attention ADD_ON=gated SUBTASK="" bash cloud/07_predict_slide.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -37,6 +38,7 @@ ROOT="${ROOT:-data/TCGA-BRCA}"
 SPLIT="${SPLIT:-test}"        # train | val | test  (test = the held-out fold partition)
 DEVICE="${DEVICE:-cuda}"
 BATCH_SIZE="${BATCH_SIZE:-1}" # 1 = per-slide; >1 pads bags and leaks padding into attention
+PORTION="${PORTION:-1.0}"     # fraction of each slide's tiles to use (1.0 = full bag; eval default)
 
 # Pretext variants whose feature sets to evaluate on (override via arguments).
 PRETEXTS=("$@")
@@ -87,6 +89,7 @@ for P in "${PRETEXTS[@]}"; do
       --split "$SPLIT" \
       --device "$DEVICE" \
       --batch-size "$BATCH_SIZE" \
+      --portion-per-sample "$PORTION" \
       --precomputed
   done
 done
