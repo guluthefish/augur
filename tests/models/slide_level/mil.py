@@ -294,8 +294,8 @@ def _test_from_config() -> None:
     assert mean_model.main_task == "subtyping", (
         "main_task should default to 'subtyping' when omitted from config."
     )
-    assert mean_model.unknown_class_index == 0, (
-        "unknown_class_index should default to 0."
+    assert mean_model.unknown_class_index is None, (
+        "unknown_class_index should default to None (no class ignored)."
     )
 
     mean_model.eval()

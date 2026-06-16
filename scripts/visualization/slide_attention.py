@@ -679,7 +679,7 @@ def compute_slide_attention(
     aggregator = _load_aggregator(aggregator_cfg, device=device, logger=logger)
     num_main_branches = int(aggregator.backbone.num_main_branches)
     unknown_class_index = aggregator.task_kwargs.get(aggregator.main_task, {}).get(
-        "unknown_class_index", 0
+        "unknown_class_index", None
     )
 
     slide_record = _derive_slide_record(slide_path)

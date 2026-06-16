@@ -17,7 +17,6 @@ from typing import Any, Callable, Sequence
 import cv2
 import numpy as np
 from openslide import OpenSlide
-import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
@@ -234,15 +233,15 @@ class _SlideDataset(Dataset[dict[str, Any]]):
             # Heartbeat BEFORE any I/O. If libopenslide segfaults or an NFS
             # call hangs the worker, this log line is the breadcrumb that
             # names the offending slide.
-            self.logger.info(
-                "[pid=%d] __getitem__ start: index=%d attempt=%d slide_id=%s submitter=%s path=%s",
-                worker_pid,
-                current_index,
-                attempt,
-                slide_record.slide_id,
-                slide_record.submitter_id,
-                slide_record.slide_path,
-            )
+            # self.logger.info(
+            #     "[pid=%d] __getitem__ start: index=%d attempt=%d slide_id=%s submitter=%s path=%s",
+            #     worker_pid,
+            #     current_index,
+            #     attempt,
+            #     slide_record.slide_id,
+            #     slide_record.submitter_id,
+            #     slide_record.slide_path,
+            # )
             start_time = time.monotonic()
             try:
                 sample = self._load_sample(slide_record)
@@ -274,14 +273,14 @@ class _SlideDataset(Dataset[dict[str, Any]]):
                 continue
 
             elapsed = time.monotonic() - start_time
-            self.logger.info(
-                "[pid=%d] __getitem__ done: index=%d slide_id=%s K=%d elapsed=%.2fs",
-                worker_pid,
-                current_index,
-                slide_record.slide_id,
-                int(sample["image"].shape[0]),
-                elapsed,
-            )
+            # self.logger.info(
+            #     "[pid=%d] __getitem__ done: index=%d slide_id=%s K=%d elapsed=%.2fs",
+            #     worker_pid,
+            #     current_index,
+            #     slide_record.slide_id,
+            #     int(sample["image"].shape[0]),
+            #     elapsed,
+            # )
             return sample
 
         # Unreachable: the loop either returns a sample or raises above.
@@ -550,9 +549,7 @@ class TCGASlideDataset(DatasetABC):
         if max_slides is not None and max_slides <= 0:
             raise ValueError("max_slides must be a positive integer or None.")
         if (n_folds is None) != (fold_idx is None):
-            raise ValueError(
-                "n_folds and fold_idx must both be set or both be None."
-            )
+            raise ValueError("n_folds and fold_idx must both be set or both be None.")
         if n_folds is None:
             # Fraction-based split: train/val partition the whole cohort
             # together with an implicit test = 1 - train - val. Both fractions
@@ -562,9 +559,7 @@ class TCGASlideDataset(DatasetABC):
                     f"train_fraction must be in [0, 1], got {train_fraction}."
                 )
             if not 0.0 <= val_fraction <= 1.0:
-                raise ValueError(
-                    f"val_fraction must be in [0, 1], got {val_fraction}."
-                )
+                raise ValueError(f"val_fraction must be in [0, 1], got {val_fraction}.")
             if train_fraction + val_fraction >= 1.0:
                 raise ValueError(
                     "train_fraction + val_fraction must be < 1 so a positive "
@@ -578,11 +573,7 @@ class TCGASlideDataset(DatasetABC):
             # must sum to 1.
             if not isinstance(n_folds, int) or n_folds < 2:
                 raise ValueError(f"n_folds must be an integer >= 2, got {n_folds}.")
-            if (
-                not isinstance(fold_idx, int)
-                or fold_idx < 0
-                or fold_idx >= n_folds
-            ):
+            if not isinstance(fold_idx, int) or fold_idx < 0 or fold_idx >= n_folds:
                 raise ValueError(
                     f"fold_idx must be an integer in [0, n_folds) = [0, {n_folds}), "
                     f"got {fold_idx}."

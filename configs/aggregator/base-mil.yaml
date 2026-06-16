@@ -7,6 +7,3 @@ params:
   dropout: 0.2
   task_weights:
     subtyping: 2.0
-  task_kwargs:
-    subtyping:
-      unknown_class_index: 0

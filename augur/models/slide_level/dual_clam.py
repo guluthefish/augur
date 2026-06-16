@@ -863,7 +863,7 @@ class DualCLAM(ModelABC):
         main_prediction = predictions[self.main_task]
 
         main_task_kwargs = self.task_kwargs.get(self.main_task, {})
-        unknown_class_index = main_task_kwargs.get("unknown_class_index", 0)
+        unknown_class_index = main_task_kwargs.get("unknown_class_index", None)
 
         main_loss = self._compute_main_loss(
             main_prediction, main_target, unknown_class_index=unknown_class_index

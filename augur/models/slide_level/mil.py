@@ -101,9 +101,9 @@ class EmbeddingMIL(ModelABC):
         loss computation. Recognized keys per task:
 
         - ``unknown_class_index`` (int or None): class index to ignore in the
-          cross-entropy loss. Defaults to ``0`` for the subtyping main task
-          (matches ``TCGASlideDataset.UNKNOWN_SUBTYPE_CLASS``). Set to
-          ``None`` to count every class.
+          cross-entropy loss. Defaults to ``None`` (every class counts); the
+          dataset no longer emits an Unknown class. Set to an int only to
+          reintroduce a reserved ignore class.
     freeze_encoder
         If ``True`` (default), set ``requires_grad=False`` on every encoder
         parameter and keep the encoder in ``eval()`` mode even when the
@@ -173,7 +173,7 @@ class EmbeddingMIL(ModelABC):
         main_task_kwargs = task_kwargs.get(main_task, {})
         if not isinstance(main_task_kwargs, dict):
             raise TypeError(f"task_kwargs['{main_task}'] must be a dict if provided.")
-        unknown_class_index = main_task_kwargs.get("unknown_class_index", 0)
+        unknown_class_index = main_task_kwargs.get("unknown_class_index", None)
         if unknown_class_index is not None and (
             not isinstance(unknown_class_index, int) or unknown_class_index < 0
         ):
