@@ -322,7 +322,9 @@ def _build_test_records_with_portion(
 
     splits = datamodule._get_slide_splits()  # pylint: disable=protected-access
     test_slides = splits["test"]
-    _, _, roi_df = datamodule._load_tissue_metadata()  # pylint: disable=protected-access
+    _, _, roi_df = (
+        datamodule._load_tissue_metadata()
+    )  # pylint: disable=protected-access
     roi_groups: dict[str, pd.DataFrame] = {
         str(slide_name): group.reset_index(drop=True)
         for slide_name, group in roi_df.groupby("slide_name", sort=False)
@@ -592,7 +594,7 @@ def _derive_model_name(model_config_path: str) -> str:
     filenames are returned as their stem unchanged.
     """
     stem = os.path.splitext(os.path.basename(model_config_path))[0]
-    return stem[len("model-"):] if stem.startswith("model-") else stem
+    return stem[len("model-") :] if stem.startswith("model-") else stem
 
 
 def _plot_confusion_matrix(
@@ -656,8 +658,13 @@ def _plot_confusion_matrix(
             if v >= annotate_threshold:
                 color = "white" if upper > 0 and v / upper > 0.5 else "black"
                 ax.text(
-                    j, i, f"{v:.2f}", ha="center", va="center",
-                    color=color, fontsize=6,
+                    j,
+                    i,
+                    f"{v:.2f}",
+                    ha="center",
+                    va="center",
+                    color=color,
+                    fontsize=6,
                 )
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
@@ -828,7 +835,9 @@ def evaluate(
         image_size=datamodule.image_size,
         base_mpp=datamodule.base_mpp,
         root_dir=datamodule.root_dir,
-        tissue_segmentation_n_classes=len(datamodule._tissue_gt_codes or {}),
+        tissue_segmentation_n_classes=len(
+            datamodule._tissue_gt_codes or {}  # pylint: disable=protected-access
+        ),
         random_seed=datamodule.random_seed,
         logger=logger,
     )
