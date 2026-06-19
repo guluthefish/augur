@@ -1,6 +1,6 @@
 # SBS (single-base substitution) COSMIC signature regression subtask.
 # output_dims.sbs_regression is the number of signature columns in the
-# contributions TSV — verify against your actual labels file before training.
+# contributions TSV.
 params:
   subtasks: ["sbs_regression"]
   output_dims:

@@ -202,14 +202,14 @@ def _pool_decoder_pre_logits(model: TileModel, encoded: Any) -> Tensor:
     """Mean-pool the decoder's last hidden layer (input to its final classifier).
 
     Uses a forward pre-hook on the decoder's final ``head`` layer to capture
-    its input tensor — that is the per-pixel feature map immediately before
+    its input tensor - that is the per-pixel feature map immediately before
     the final 1x1 convolution that produces logits. The captured map is
     spatial-mean-pooled to ``[B, C]``.
 
     Works for both ``DPTDecoder`` (where ``head`` is a ``Sequential``; the
     final layer is ``head[-1]``) and ``UNetDecoder`` (where ``head`` is a
     single ``Conv2d`` or ``Identity``). For the segmentation configs in
-    this repo ``C`` is ``head_channels`` (DPT) or ``d0_channels`` (U-Net) —
+    this repo ``C`` is ``head_channels`` (DPT) or ``d0_channels`` (U-Net) -
     much smaller and more class-specialized than the encoder embedding,
     while preserving more nuance than the 22-D softmax probabilities.
 
@@ -227,7 +227,7 @@ def _pool_decoder_pre_logits(model: TileModel, encoded: Any) -> Tensor:
     Returns
     -------
     torch.Tensor
-        Tensor of shape ``[B, C]`` — one mean-pooled pre-logit vector per
+        Tensor of shape ``[B, C]`` - one mean-pooled pre-logit vector per
         tile.
     """
     if "tissue_segmentation" not in model.decoders:
@@ -290,7 +290,7 @@ def _pool_decoder_predictions(model: TileModel, encoded: Any) -> Tensor:
     Returns
     -------
     torch.Tensor
-        Tensor of shape ``[B, n_classes]`` — one mean-softmax probability
+        Tensor of shape ``[B, n_classes]`` - one mean-softmax probability
         vector per tile.
     """
     if "tissue_segmentation" not in model.decoders:
@@ -1130,7 +1130,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "yielding a (n_classes,) probability vector that is "
             "class-aligned by construction. 'pre-logits': mean-pool the "
             "decoder's last hidden feature map (the input to its final 1x1 "
-            "conv) — class-specialized but with more capacity than the "
+            "conv) - class-specialized but with more capacity than the "
             "softmax probabilities."
         ),
     )

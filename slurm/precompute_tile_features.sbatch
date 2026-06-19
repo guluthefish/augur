@@ -22,8 +22,8 @@
 #   configs/tile-model/base-<ENCODER>.yaml
 #   configs/tile-model/pretext-<PRETEXT>-<ENCODER>.yaml  (omit for `none`)
 #   configs/dataset/base-<DATASET>.yaml                  (slide flavor)
-# The output directory is `<root_dir>/features/<encoder>-<pretext_tag>` —
-# matching the layout `flavor-feature.yaml` derives — so the aggregator's
+# The output directory is `<root_dir>/features/<encoder>-<pretext_tag>`,
+# matching the layout `flavor-feature.yaml` derives, so the aggregator's
 # feature flavor picks this cache up automatically. Edit the SBATCH
 # --job-name / --output / --error above to match when changing ENCODER or
 # PRETEXT.
@@ -107,7 +107,7 @@ echo "features_dir:  $FEATURES_DIR"
 echo "precision:     $PRECISION"
 echo "chunk_size:    $CHUNK_SIZE"
 
-# Single-task / single-GPU run — encoding is embarrassingly parallel across
+# Single-task / single-GPU run - encoding is embarrassingly parallel across
 # slides but the script processes them sequentially. No DDP, so --ntasks=1.
 srun --ntasks=1 apptainer exec \
     --nv \

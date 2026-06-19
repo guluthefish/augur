@@ -15,8 +15,7 @@ visualizations:
 4. **Extreme-attention tiles.** Top: a few high-attention tiles framed in
    red. Bottom: a few low-attention tiles framed in light blue.
 
-The script is split into two layers so you can also design your own
-figure:
+The script is split into two layers:
 
 - :func:`compute_slide_attention` runs the model and returns a
   :class:`SlideAttentionResult` with every artifact (tile centers,
@@ -99,7 +98,7 @@ class SlideAttentionResult:
     slide_mpp: float  # microns per pixel at level 0
 
     # Tile bag
-    centers_l0: np.ndarray  # (K, 2) int64 — level-0 tile centers (x, y)
+    centers_l0: np.ndarray  # (K, 2) int64 - level-0 tile centers (x, y)
     tile_extent_l0: float  # tile side length in level-0 pixels
     tile_records: list[TileRecord]
     base_mpp: float
@@ -599,7 +598,7 @@ def compute_slide_attention(
     sensible choice for visualization), and:
 
     1. If ``<features_dir>/<slide_id>.pt`` exists, loads cached features
-       and their level-0 ``tile_centers`` directly — no tile encoder
+       and their level-0 ``tile_centers`` directly - no tile encoder
        needed.
     2. Otherwise builds the tile encoder from ``tile_model_config_path``
        and encodes every tile on the fly.
@@ -615,7 +614,7 @@ def compute_slide_attention(
     Parameters
     ----------
     dataset_cfg:
-        Merged dataset config dict (slide flavor — must include the
+        Merged dataset config dict (slide flavor - must include the
         tile-extraction params under ``params``). Build it via
         :func:`augur.utils.config.load_dataset_config`.
     aggregator_cfg:
@@ -1134,7 +1133,7 @@ def draw_scale_bar(
 ) -> None:
     """Draw a horizontal scale bar in the lower-left corner of ``ax``.
 
-    ``mm_per_canvas_px`` is the physical mm per canvas pixel — typically
+    ``mm_per_canvas_px`` is the physical mm per canvas pixel - typically
     ``slide_mpp / 1000 / scale_canvas_per_l0``. ``linewidth`` and
     ``fontsize`` are in matplotlib display units; scale them up on
     larger canvases (e.g. by ``canvas_w / reference_canvas_w``) so the
@@ -1313,8 +1312,8 @@ def build_default_figure(
                 spine.set_color(color)
                 spine.set_linewidth(3.0)
 
-    _draw_tile_row(0, high_tiles, color="#d62728")  # red — high attention
-    _draw_tile_row(1, low_tiles, color="#7fb6e6")  # light blue — low attention
+    _draw_tile_row(0, high_tiles, color="#d62728")  # red - high attention
+    _draw_tile_row(1, low_tiles, color="#7fb6e6")  # light blue - low attention
 
     if title:
         fig.suptitle(title, fontsize=11)
@@ -1387,7 +1386,7 @@ def export_attention_assets(
     Three views are rendered (``slide``, ``slide_roi``, ``roi``), each in
     eight versions covering the cartesian product of three on/off toggles:
     attention overlay, tumor outline, scale ruler. The view ``slide_roi``
-    additionally draws the ROI rectangle on every variant — that is what
+    additionally draws the ROI rectangle on every variant - that is what
     distinguishes it from ``slide``.
 
     The output layout is::
@@ -1828,7 +1827,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "regression). Pass multiple tokens to stack heads, e.g. "
             "`--subtask sbs dbs`. Pass `full` as a shorthand for all four. "
             "Pass `--subtask` with no tokens to omit. The token order doesn't "
-            "matter — it's alphabetized inside the merge function. Only valid "
+            "matter - it's alphabetized inside the merge function. Only valid "
             "with --base clam."
         ),
     )

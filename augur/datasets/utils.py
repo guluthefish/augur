@@ -501,8 +501,7 @@ def split_slide_records_kfold(
     are roughly preserved per fold. Slides whose submitter label equals
     ``exclude_label`` (default 0, the Unknown class) are dropped from the
     cross-validation entirely. Submitters missing from ``submitter_labels`` are
-    also dropped (so the Unknown backfill upstream must run first if you intend
-    to keep them as Unknown via ``exclude_label=0``).
+    also dropped.
 
     Fold semantics: with seed and ``n_folds`` fixed, the outer split partitions
     eligible patients into ``n_folds`` disjoint folds; iterating
@@ -586,11 +585,6 @@ def split_slide_records_kfold(
         return {"train": train_records, "val": [], "test": test_records}
 
     # Inner split: one grouped shuffle so |val| / |trainval| ≈ val_fraction.
-    # k-fold is only used to delimit the test partition (outer); the train/val
-    # carve is a single patient-grouped random split. Stratification on val is
-    # dropped here — sklearn has no StratifiedGroupShuffleSplit, and the outer
-    # StratifiedGroupKFold already balances classes per fold, so within one
-    # fold's trainval pool the class proportions are already roughly preserved.
     trainval_records = [eligible[i] for i in trainval_idx]
     trainval_groups = groups_arr[trainval_idx]
 

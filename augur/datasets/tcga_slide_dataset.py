@@ -138,7 +138,7 @@ class _SlideDataset(Dataset[dict[str, Any]]):
     ``centers_by_slide_id``. ``__getitem__`` randomly samples
     ``floor(T * portion_per_sample)`` of those centers without replacement,
     where ``T`` is the per-slide candidate count. The returned tile stack has
-    a per-slide ``K`` (variable across slides) — use a padding collate
+    a per-slide ``K`` (variable across slides), use a padding collate
     function when batching.
 
     Each sample emits the main subtyping target at ``sample["target"]`` (a
@@ -370,12 +370,12 @@ class TCGASlideDataset(DatasetABC):
     emitted as a scalar ``long`` at ``batch["target"]``. Class indices are
     assigned in first-seen order over the real subtype values in the table;
     there is no Unknown class. Slides whose submitter is missing from the
-    main label table — or whose normalized subtype is ``Unknown`` /
-    placeholder, or who is missing from any required subtask label table —
+    main label table, or whose normalized subtype is ``Unknown`` /
+    placeholder, or who is missing from any required subtask label table,
     are dropped entirely.
 
     Subtask tasks are slide-level SBS exposure vectors keyed by the entries
-    of ``slide_subtask_atlas.txt`` — currently ``sbs_regression``,
+    of ``slide_subtask_atlas.txt``, currently ``sbs_regression``,
     ``dbs_regression``, ``id_regression``, and ``cnv_regression``. Each
     configured subtask adds a nested ``batch[subtask]["target"]``
     entry holding a float vector of length ``num_subtask_labels[subtask]``.
@@ -419,7 +419,7 @@ class TCGASlideDataset(DatasetABC):
         Patient-level (submitter-level) split fractions. When ``n_folds`` is
         ``None`` (fraction mode), ``train_fraction + val_fraction`` must be
         ``< 1`` and the remainder is the test split. When ``n_folds`` is set
-        (k-fold mode), ``train_fraction + val_fraction`` must equal 1 — they
+        (k-fold mode), ``train_fraction + val_fraction`` must equal 1: they
         partition the trainval pool, and the test split is the ``fold_idx``-th
         of ``n_folds`` patient-grouped, subtype-stratified folds.
     n_folds, fold_idx

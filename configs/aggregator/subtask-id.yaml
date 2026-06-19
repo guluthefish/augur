@@ -1,6 +1,6 @@
 # ID (small insertion/deletion) COSMIC signature regression subtask.
 # output_dims.id_regression is the number of signature columns in the
-# contributions TSV — verify against your actual labels file before training.
+# contributions TSV.
 params:
   subtasks: ["id_regression"]
   output_dims:

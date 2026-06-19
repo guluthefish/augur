@@ -55,7 +55,7 @@ class EmbeddingMIL(ModelABC):
 
     Combines an optional shared tile encoder, a bag aggregator, and a fully
     connected decoder head into a single Lightning module solving one
-    classification task — currently slide-level subtyping. Given a batch
+    classification task, currently slide-level subtyping. Given a batch
     with image shape ``(B, K, 3, H, W)`` or pre-computed feature bags of
     shape ``(B, K, D)``, the forward pass:
 

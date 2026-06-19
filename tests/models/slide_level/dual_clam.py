@@ -554,7 +554,7 @@ def _test_from_config() -> None:
     """DualCLAM.from_config should parse a full config into a working model."""
     print("Testing DualCLAM.from_config()...")
 
-    # Case 1: Minimal config — encoder-less, no subtask, default main_task.
+    # Case 1: Minimal config - encoder-less, no subtask, default main_task.
     minimal_model = DualCLAM.from_config(
         {
             "enc_dim": 6,
@@ -580,7 +580,7 @@ def _test_from_config() -> None:
     assert minimal_out["subtyping"].shape == (2, 4)
     assert minimal_out["_attention_weights"].shape == (2, 1, 3)
 
-    # Case 2: Full config — subtask, task weights/kwargs, MB, optimizer, scheduler.
+    # Case 2: Full config - subtask, task weights/kwargs, MB, optimizer, scheduler.
     full_config = {
         "main_task": "subtyping",
         "subtasks": ["sbs_regression"],

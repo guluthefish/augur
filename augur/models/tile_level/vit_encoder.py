@@ -221,7 +221,7 @@ class ViTEncoder(ModelABC):
         )
 
     def configure_optimizers(self: ViTEncoder) -> None:
-        """Sub-component — its optimizer is owned by the parent TileModel."""
+        """Sub-component, its optimizer is owned by the parent TileModel."""
         raise NotImplementedError(
             "ViTEncoder is an encoder sub-component, not a top-level "
             "Lightning module. Its optimizer is configured by the parent "

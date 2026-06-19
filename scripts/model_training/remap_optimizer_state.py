@@ -7,8 +7,8 @@ Background
 Lightning restores model weights by *name* (order-independent) but restores
 optimizer state by *integer index* into ``model.parameters()``. If the code
 that writes a checkpoint registers parameters in a different order than the
-code that later resumes it — e.g. a decoder ``nn.ModuleDict`` whose insertion
-order shifted — the saved per-parameter Adam moments get paired with the wrong
+code that later resumes it - e.g. a decoder ``nn.ModuleDict`` whose insertion
+order shifted - the saved per-parameter Adam moments get paired with the wrong
 current gradients and the first optimizer step dies with a shape error like::
 
     RuntimeError: The size of tensor a (2048) must match the size of tensor b (3)
@@ -20,7 +20,7 @@ order (which equals the registration order at save time), and rewrites
 order. Model weights, epoch, global_step and LR-scheduler state are preserved
 verbatim, so the resumed run continues exactly where it left off.
 
-If the parameter *set* (names/shapes) differs — a genuine architecture change —
+If the parameter *set* (names/shapes) differs - a genuine architecture change -
 a lossless remap is impossible; the script aborts and tells you to warm-start
 from weights instead.
 
@@ -50,7 +50,9 @@ from augur.utils.config import load_tile_model_config  # noqa: E402
 
 
 def _build_model(encoder: str, pretexts: list[str]) -> TileModel:
-    cfg = load_tile_model_config("configs/tile-model", encoder=encoder, pretexts=pretexts)
+    cfg = load_tile_model_config(
+        "configs/tile-model", encoder=encoder, pretexts=pretexts
+    )
     return TileModel.from_config(cfg["params"])
 
 
@@ -80,7 +82,7 @@ def _self_verify(output_path: str, encoder: str, pretexts: list[str]) -> None:
 
     This exercises the exact index-pairing that failed at resume time, so a
     clean step proves the remapped checkpoint will resume without the shape
-    crash — verified on the real checkpoint, before launching a training job.
+    crash - verified on the real checkpoint, before launching a training job.
     """
     model = _build_model(encoder, pretexts)
     ckpt = torch.load(output_path, map_location="cpu", weights_only=False)
@@ -148,9 +150,7 @@ def remap_checkpoint(
     # for a single param_group. With 2+ groups (e.g. a decay/no-decay split)
     # the positional id->name decode below would be wrong and silently route
     # moments to the wrong parameters. Abort rather than miswire.
-    multi_group = any(
-        len(opt["param_groups"]) != 1 for opt in ckpt["optimizer_states"]
-    )
+    multi_group = any(len(opt["param_groups"]) != 1 for opt in ckpt["optimizer_states"])
     if multi_group:
         print(
             "ERROR: checkpoint optimizer has more than one param_group. The "
@@ -191,7 +191,7 @@ def remap_checkpoint(
     # param_group's ``params`` listing those indices in the current
     # enumeration order (ascending new index). PyTorch's load_state_dict pairs
     # saved param-ids to current params *positionally* within each group, so
-    # the ``params`` list order — not just the state keys — must be canonical.
+    # the ``params`` list order - not just the state keys - must be canonical.
     moved = 0
     for opt_state in ckpt["optimizer_states"]:
         old_state = opt_state["state"]
@@ -210,10 +210,14 @@ def remap_checkpoint(
                 for old_idx in group["params"]
             )
 
-    print(f"Remapped optimizer state: {len(saved_order)} params, "
-          f"{moved} moved to a new index, {n_optimizers} optimizer(s).")
-    print(f"epoch={ckpt.get('epoch')} global_step={ckpt.get('global_step')} "
-          "(preserved).")
+    print(
+        f"Remapped optimizer state: {len(saved_order)} params, "
+        f"{moved} moved to a new index, {n_optimizers} optimizer(s)."
+    )
+    print(
+        f"epoch={ckpt.get('epoch')} global_step={ckpt.get('global_step')} "
+        "(preserved)."
+    )
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)) or ".", exist_ok=True)
     tmp = output_path + ".tmp"
@@ -231,17 +235,23 @@ def main() -> None:
     parser.add_argument("--output", required=True, help="Path for the remapped .ckpt")
     parser.add_argument("--encoder", default="resnet50")
     parser.add_argument(
-        "--pretext", nargs="*", default=["full"],
+        "--pretext",
+        nargs="*",
+        default=["full"],
         help="Pretext tokens used to build the model (e.g. full, or "
-             "hematoxylin jigmag magnification).",
+        "hematoxylin jigmag magnification).",
     )
     parser.add_argument(
-        "--no-verify", action="store_true",
+        "--no-verify",
+        action="store_true",
         help="Skip the post-remap dry optimizer step self-check.",
     )
     args = parser.parse_args()
     remap_checkpoint(
-        args.checkpoint, args.output, args.encoder, list(args.pretext),
+        args.checkpoint,
+        args.output,
+        args.encoder,
+        list(args.pretext),
         verify=not args.no_verify,
     )
 

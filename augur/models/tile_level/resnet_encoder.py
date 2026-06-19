@@ -322,7 +322,7 @@ class ResNetEncoder(ModelABC):
         )
 
     def configure_optimizers(self: ResNetEncoder) -> None:
-        """Sub-component — its optimizer is owned by the parent TileModel."""
+        """Sub-component, its optimizer is owned by the parent TileModel."""
         raise NotImplementedError(
             "ResNetEncoder is an encoder sub-component, not a top-level "
             "Lightning module. Its optimizer is configured by the parent "

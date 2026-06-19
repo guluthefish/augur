@@ -1,6 +1,6 @@
 # Production trainer recipe shared by tile-encoder and slide-aggregator
 # training. `default_root_dir`, `checkpoint.filename`, and `logger.name` are
-# auto-derived from the run_name at runtime — they do not need to be set
+# auto-derived from the run_name at runtime - they do not need to be set
 # here.
 seed: 42
 test_after_fit: true

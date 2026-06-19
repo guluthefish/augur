@@ -5,12 +5,12 @@ aggregator on top of a *frozen* tile encoder. Instead of opening WSIs and
 re-encoding tiles every epoch, ``__getitem__`` loads a per-slide
 ``<slide_id>.pt`` produced by
 ``scripts/model_training/precompute_tile_features.py`` and returns a
-``(K, D)`` feature bag with the same downstream contract as ``_SlideDataset``
-— including ``target`` and per-subtask target entries.
+``(K, D)`` feature bag with the same downstream contract as ``_SlideDataset``,
+including ``target`` and per-subtask target entries.
 
 The same :func:`pad_bag_collate` from the slide dataset works unchanged: it
 pads along the first axis regardless of trailing shape. After collation,
-``batch["image"]`` is ``(B, K_max, D)`` — exactly the pre-encoded path already
+``batch["image"]`` is ``(B, K_max, D)``, exactly the pre-encoded path already
 handled by ``DualCLAM._encode_bag`` / ``EmbeddingMIL._encode_bag`` via the
 ``image.ndim == 3`` branch.
 
@@ -19,7 +19,7 @@ Compared to the slide dataset, this datamodule:
 - Skips slides that have no cached ``<slide_id>.pt`` (with a warning), so a
   partial cache build still trains.
 - Caps each sampled bag at ``max_tiles_per_bag`` after applying
-  ``portion_per_sample`` — the OOM mitigation that was unavailable when the
+  ``portion_per_sample``:  the OOM mitigation that was unavailable when the
   encoder was inline in the training loop.
 - Validates that the cache agrees on ``encoder_name`` and ``enc_dim``;
   mixing caches from different encoders would otherwise silently produce
@@ -317,7 +317,7 @@ class TCGAFeatureDataset(DatasetABC):
         In fraction mode (``n_folds`` is ``None``), ``train_fraction +
         val_fraction`` must be ``< 1`` and the remainder is the test split.
         In k-fold mode (``n_folds`` set), ``train_fraction + val_fraction``
-        must equal 1 — they partition the trainval pool, and the test split
+        must equal 1: they partition the trainval pool, and the test split
         is the ``fold_idx``-th of ``n_folds`` patient-grouped,
         subtype-stratified folds.
     n_folds, fold_idx

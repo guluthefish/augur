@@ -296,7 +296,7 @@ class UNetDecoder(ModelABC):
         )
 
     def configure_optimizers(self: UNetDecoder) -> None:
-        """Sub-component — its optimizer is owned by the parent TileModel."""
+        """Sub-component, its optimizer is owned by the parent TileModel."""
         raise NotImplementedError(
             "UNetDecoder is a decoder sub-component, not a top-level "
             "Lightning module. Its optimizer is configured by the parent "

@@ -14,7 +14,7 @@
 # Timeout-path SMOKE TEST for the node-crash fix. Uses TRAINER=smoketest-timeout
 # (configs/trainer/base-smoketest-timeout.yaml): trains continuously with a tiny
 # `max_time` (5 min) so the run actually reaches the time budget and we can
-# observe the exact path that used to crash nodes — the job self-stops at a batch
+# observe the exact path that used to crash nodes - the job self-stops at a batch
 # boundary, checkpoints, and Apptainer exits cleanly *before* any SLURM SIGKILL.
 # It writes to a throwaway dir and never resumes, so it cannot touch the real
 # checkpoints/logs. Run it on an EXCLUSIVE node: `sbatch --exclusive ...`.

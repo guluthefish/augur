@@ -203,7 +203,7 @@ class Classifier(ModelABC):
         )
 
     def configure_optimizers(self: Classifier) -> None:
-        """Sub-component — its optimizer is owned by the parent TileModel."""
+        """Sub-component, its optimizer is owned by the parent TileModel."""
         raise NotImplementedError(
             "Classifier is a decoder sub-component, not a top-level Lightning "
             "module. Its optimizer is configured by the parent TileModel; "

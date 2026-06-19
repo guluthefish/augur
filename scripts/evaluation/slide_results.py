@@ -10,12 +10,12 @@ split's dataloader.
 For each run it writes, under ``--output-dir/<model>/`` (``<model>`` is the
 aggregator's checkpoint stem, e.g. ``clam-full-mb-gated-resnet50-full``):
 
-- ``<main_task>.txt`` (e.g. ``subtyping.txt``) — a TSV with header
+- ``<main_task>.txt`` (e.g. ``subtyping.txt``) - a TSV with header
   ``slide_id  true_label  pred_label  <class_0>  <class_1> ...`` where each
   ``class_i`` column holds the softmax probability for that class and
   ``true_label`` / ``pred_label`` are the human-readable class names.
 - ``<subtask>.txt`` (one per aggregator subtask, e.g. ``sbs_regression.txt``)
-  — a TSV with header ``slide_id  <signature_0>  <signature_1> ...`` where each
+  - a TSV with header ``slide_id  <signature_0>  <signature_1> ...`` where each
   signature column holds the predicted regression value (no true label, since
   the subtasks are regression). ``<signature_i>`` is the COSMIC signature name
   (``SBS1``, ``DBS2``, ``ID7``, ``CN1`` ...) read from the labels table.
@@ -311,7 +311,7 @@ def _run_inference(
             # while the class names are derived at runtime from the labels TSV
             # (Unknown rows skipped, conflicts dropped, survivors renumbered).
             # When they disagree, columns past the named range fall back to
-            # "class_i" and out-of-range labels render as bare indices — which
+            # "class_i" and out-of-range labels render as bare indices - which
             # violates the spec, and usually means a wrong checkpoint/labels
             # pairing. Warn loudly but still emit the predictions.
             logger.warning(
@@ -399,7 +399,7 @@ def evaluate(
         )
 
     # _create_model rebuilds the architecture and loads checkpoint_path's
-    # weights — identical to how training warm-starts an exported aggregator.
+    # weights - identical to how training warm-starts an exported aggregator.
     model = _create_model(
         model_config,
         logger,

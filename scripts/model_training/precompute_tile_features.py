@@ -88,19 +88,19 @@ def _load_tile_encoder(
     """Build the encoder from a merged tile-model config and return ``(encoder, name, D)``.
 
     ``tile_model_config`` is the dict produced by
-    :func:`augur.utils.config.load_tile_model_config` — already merged from
+    :func:`augur.utils.config.load_tile_model_config` - already merged from
     ``base-{encoder}.yaml`` + the requested ``pretext-…`` partials, with the
     encoder / decoders inlined as dicts and ``checkpoint_path`` set to
     ``checkpoints/{encoder}-{pretext_tag}.pth``.
 
     The encoder is moved to ``device`` *and* cast to ``dtype``. Casting the
     weights matters because :func:`_encode_tile_bag` casts each input chunk
-    to ``dtype`` before the forward pass — leaving the weights at fp32 while
+    to ``dtype`` before the forward pass - leaving the weights at fp32 while
     feeding fp16 input triggers a ``HalfTensor`` vs ``FloatTensor`` mismatch
     inside the first conv.
 
     The decoders are instantiated by ``TileModel.from_config`` but ignored
-    here — only the encoder is retained.
+    here - only the encoder is retained.
     """
     tile_model_params = tile_model_config.get("params", tile_model_config)
     if not isinstance(tile_model_params, dict):

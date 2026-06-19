@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Bundle training outputs BEFORE you terminate the pod -- the container disk is wiped
-# on terminate, so your checkpoints vanish if you don't pull them off first.
-# Creates one tarball and prints the scp command to run from your laptop.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

@@ -140,7 +140,7 @@ class Attention(ModelABC):
         )
 
     def configure_optimizers(self: Attention) -> None:
-        """Sub-component — optimizer is owned by the parent DualCLAM/EmbeddingMIL."""
+        """Sub-component, optimizer is owned by the parent DualCLAM/EmbeddingMIL."""
         raise NotImplementedError(
             "Attention is a pooling sub-component, not a top-level Lightning "
             "module. Its optimizer is configured by the parent slide-level "
@@ -280,7 +280,7 @@ class GatedAttention(ModelABC):
         )
 
     def configure_optimizers(self: GatedAttention) -> None:
-        """Sub-component — optimizer is owned by the parent DualCLAM/EmbeddingMIL."""
+        """Sub-component, optimizer is owned by the parent DualCLAM/EmbeddingMIL."""
         raise NotImplementedError(
             "GatedAttention is a pooling sub-component, not a top-level "
             "Lightning module. Its optimizer is configured by the parent "

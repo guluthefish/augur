@@ -113,7 +113,7 @@ def _resolve_aggregator_component_paths(
     (``DualCLAM`` / ``EmbeddingMIL``) can load a string path via
     ``_resolve_component_config``, but nested ``encoder_config`` /
     ``decoders_config`` paths inside the tile-model YAML stay relative to
-    that YAML's directory — not the CWD. This helper pre-loads the referenced
+    that YAML's directory - not the CWD. This helper pre-loads the referenced
     YAML, resolves those nested paths to absolute paths, and replaces
     ``params.tile_model_config`` with the resolved dict so the aggregator
     factory receives a fully-resolved inline config regardless of CWD.
@@ -499,7 +499,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     - ``--add-on``: optional attention add-on; ``gated`` is the only
       supported value and only applies with attention-based variants.
     - ``--encoder``: encoder architecture (e.g. ``resnet50``,
-      ``prov-gigapath``) — controls ``enc_dim``.
+      ``prov-gigapath``) - controls ``enc_dim``.
     - ``--pretext``: encoder pretext task; consumed only to compose the
       aggregator's ``checkpoint_path`` (and to select the matching
       ``pretext-{name}.yaml`` marker partial).
@@ -604,7 +604,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "Zero or more aggregator-level auxiliary subtasks (COSMIC signature "
             "regression). Pass multiple tokens to stack heads, e.g. "
             "`--subtask sbs dbs`. Pass `full` as a shorthand for all four "
-            "subtasks. The token order doesn't matter — the merge function "
+            "subtasks. The token order doesn't matter - the merge function "
             "sorts alphabetically so any permutation of the same set yields "
             "the same run name. Only valid with `--base clam`."
         ),

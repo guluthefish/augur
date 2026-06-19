@@ -175,63 +175,108 @@ def argmax_metrics(frame: pd.DataFrame) -> tuple[float, float]:
     return accuracy, balanced
 
 
-def bootstrap_macro(
-    frame: pd.DataFrame, n_boot: int, seed: int
-) -> tuple[float, float] | None:
-    """Percentile 95% CI for macro AUROC by resampling rows with replacement."""
+def _summarize_samples(values: list[float]) -> dict | None:
+    """Std (standard error of the estimate) + 95% percentile CI of bootstrap draws."""
+    arr = np.asarray(values, dtype=np.float64)
+    arr = arr[~np.isnan(arr)]
+    if arr.size == 0:
+        return None
+    return {
+        "std": float(arr.std(ddof=1)) if arr.size > 1 else 0.0,
+        "ci95": [float(np.percentile(arr, 2.5)), float(np.percentile(arr, 97.5))],
+    }
+
+
+def bootstrap_stats(
+    frame: pd.DataFrame, classes: list[str], n_boot: int, seed: int
+) -> dict | None:
+    """Bootstrap std + 95% CI for each AUROC metric by resampling rows.
+
+    ``std`` is the bootstrap standard deviation (the standard error of the
+    estimate, i.e. the ``±`` in ``0.65 ±0.02``); ``ci95`` is the 2.5/97.5
+    percentile interval. Returns ``None`` when bootstrapping is disabled.
+    """
     if n_boot <= 0:
         return None
     rng = np.random.default_rng(seed)
     n = len(frame)
-    samples: list[float] = []
+    per_class_samples: dict[str, list[float]] = {c: [] for c in classes}
+    macro_samples: list[float] = []
+    weighted_samples: list[float] = []
     for _ in range(n_boot):
         idx = rng.integers(0, n, size=n)
-        macro, _ = macro_weighted(per_class_auroc(frame.iloc[idx]))
-        if not np.isnan(macro):
-            samples.append(macro)
-    if not samples:
-        return None
-    arr = np.array(samples)
-    return float(np.percentile(arr, 2.5)), float(np.percentile(arr, 97.5))
+        per_class = per_class_auroc(frame.iloc[idx])
+        for cls in classes:
+            per_class_samples[cls].append(per_class[cls]["auroc"])
+        macro, weighted = macro_weighted(per_class)
+        macro_samples.append(macro)
+        weighted_samples.append(weighted)
+    return {
+        "per_class": {c: _summarize_samples(per_class_samples[c]) for c in classes},
+        "macro": _summarize_samples(macro_samples),
+        "weighted": _summarize_samples(weighted_samples),
+    }
 
 
 def build_report(frame: pd.DataFrame, n_boot: int, seed: int) -> dict:
     """Assemble the metrics dict for one (possibly pooled) prediction set."""
+    classes = class_columns(frame)
     per_class = per_class_auroc(frame)
     macro, weighted = macro_weighted(per_class)
     accuracy, balanced = argmax_metrics(frame)
     report = {
         "n_slides": int(len(frame)),
-        "classes": class_columns(frame),
+        "classes": classes,
         "per_class": per_class,
         "macro_auroc": macro,
         "weighted_auroc": weighted,
         "accuracy": accuracy,
         "balanced_accuracy": balanced,
     }
-    ci = bootstrap_macro(frame, n_boot, seed)
-    if ci is not None:
-        report["macro_auroc_ci95"] = list(ci)
+    stats = bootstrap_stats(frame, classes, n_boot, seed)
+    if stats is not None:
+        report["n_bootstrap"] = n_boot
+        for cls in classes:
+            summary = stats["per_class"].get(cls)
+            if summary is not None:
+                report["per_class"][cls]["std"] = summary["std"]
+                report["per_class"][cls]["ci95"] = summary["ci95"]
+        if stats["macro"] is not None:
+            report["macro_auroc_std"] = stats["macro"]["std"]
+            report["macro_auroc_ci95"] = stats["macro"]["ci95"]
+        if stats["weighted"] is not None:
+            report["weighted_auroc_std"] = stats["weighted"]["std"]
+            report["weighted_auroc_ci95"] = stats["weighted"]["ci95"]
     return report
 
 
 def print_report(report: dict) -> None:
     """Human-readable table to stdout."""
+    has_std = "macro_auroc_std" in report
     print(f"\nslides: {report['n_slides']}   classes: {len(report['classes'])}\n")
-    print(f"{'class':<16}{'support':>9}{'AUROC':>10}")
-    print("-" * 35)
+    auroc_header = "AUROC ±std" if has_std else "AUROC"
+    header = f"{'class':<16}{'support':>9}{auroc_header:>18}"
+    print(header)
+    print("-" * len(header))
     for cls, vals in report["per_class"].items():
         auroc = vals["auroc"]
-        auroc_str = "n/a" if np.isnan(auroc) else f"{auroc:.4f}"
-        print(f"{cls:<16}{vals['support']:>9}{auroc_str:>10}")
-    print("-" * 35)
-    macro = report["macro_auroc"]
-    if "macro_auroc_ci95" in report:
+        if np.isnan(auroc):
+            cell = "n/a"
+        elif has_std and vals.get("std") is not None:
+            cell = f"{auroc:.4f} ±{vals['std']:.4f}"
+        else:
+            cell = f"{auroc:.4f}"
+        print(f"{cls:<16}{vals['support']:>9}{cell:>18}")
+    print("-" * len(header))
+    macro_line = f"macro AUROC      : {report['macro_auroc']:.4f}"
+    if has_std:
         lo, hi = report["macro_auroc_ci95"]
-        print(f"macro AUROC      : {macro:.4f}  (95% CI {lo:.4f}-{hi:.4f})")
-    else:
-        print(f"macro AUROC      : {macro:.4f}")
-    print(f"weighted AUROC   : {report['weighted_auroc']:.4f}")
+        macro_line += f" ±{report['macro_auroc_std']:.4f}   (95% CI {lo:.4f}-{hi:.4f})"
+    print(macro_line)
+    weighted_line = f"weighted AUROC   : {report['weighted_auroc']:.4f}"
+    if has_std and report.get("weighted_auroc_std") is not None:
+        weighted_line += f" ±{report['weighted_auroc_std']:.4f}"
+    print(weighted_line)
     print(f"accuracy         : {report['accuracy']:.4f}")
     print(f"balanced accuracy: {report['balanced_accuracy']:.4f}\n")
 
@@ -256,7 +301,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--bootstrap",
         type=int,
         default=0,
-        help="Bootstrap resamples for a 95%% CI on macro AUROC (0 = off).",
+        help="Bootstrap resamples for +-std and 95%% CI on the AUROC metrics (0 = off).",
     )
     parser.add_argument("--seed", type=int, default=42, help="Bootstrap RNG seed.")
     parser.add_argument(

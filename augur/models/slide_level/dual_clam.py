@@ -3,7 +3,7 @@
 Implements CLAM (Clustering-constrained Attention Multiple instance learning,
 Lu et al., 2021) as a Lightning module. The main task is slide-level subtyping
 (classification, cross-entropy). Subtask tasks are per-submitter COSMIC
-signature exposure heads — one per signature class produced by
+signature exposure heads: one per signature class produced by
 :func:`scripts.data_handling.extract_signatures.extract_signature_labels`
 (``sbs_regression``, ``dbs_regression``, ``id_regression``, ``cnv_regression``).
 
@@ -107,7 +107,7 @@ class _DualCLAMBase(nn.Module):
     Pipeline: encoder (optional) -> projection MLP -> (gated) attention ->
     one head per task. Each task uses a configurable contiguous slice of
     attention branches (the ``branch_layout``). Instance classifiers for
-    CLAM's clustering loss are registered for the main task — one binary
+    CLAM's clustering loss are registered for the main task: one binary
     classifier per main-task class.
     """
 
@@ -226,7 +226,7 @@ class _DualCLAMBase(nn.Module):
         # Instance classifiers for CLAM's clustering loss on the main
         # (classification) task. One binary head per main-task class. The
         # `unknown_class_index` slot is replaced with nn.Identity so it has
-        # no parameters — _compute_instance_loss skips that index, and a
+        # no parameters, _compute_instance_loss skips that index, and a
         # zero-param slot avoids DDP "unused parameters" deadlocks.
         num_main_classes = int(output_dims[main_task])
         self.unknown_class_index = unknown_class_index
@@ -402,7 +402,7 @@ class DualCLAM_MB(_DualCLAMBase):
     """Multi-branch CLAM backbone.
 
     Allocates ``num_main_branches = output_dims[main_task]`` attention branches
-    for the main subtyping task — one branch per subtype class — plus one
+    for the main subtyping task, one branch per subtype class, plus one
     extra branch per configured subtask (each subtask gets its own single
     attention distribution). Total ``num_heads = output_dims[main_task] +
     len(subtasks)``.
@@ -455,8 +455,8 @@ class DualCLAM(ModelABC):
 
     Batch layout (matches ``TCGASlideDataset``):
 
-    - Main subtyping target: ``batch["target"]`` — ``(B,)`` long.
-    - Each subtask target: ``batch[subtask]["target"]`` — ``(B, D)``
+    - Main subtyping target: ``batch["target"]`` - ``(B,)`` long.
+    - Each subtask target: ``batch[subtask]["target"]`` - ``(B, D)``
       float vector.
 
     Parameters
@@ -478,7 +478,7 @@ class DualCLAM(ModelABC):
 
         - ``unknown_class_index`` (int or None): optional class index to
           ignore in the subtyping cross-entropy and to skip during instance
-          clustering. Defaults to ``None`` — the dataset no longer emits an
+          clustering. Defaults to ``None``,  the dataset no longer emits an
           Unknown class, so this is only needed if a downstream caller
           explicitly mints one.
     enc_dim

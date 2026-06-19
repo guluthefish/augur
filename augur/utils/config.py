@@ -145,8 +145,8 @@ def load_aggregator_config(
 
     The aggregator YAML is split across six partial axes:
 
-    - ``base-{base}.yaml``: bag-level architecture skeleton — ``clam`` or
-      ``mil`` — including the per-task ``task_weights`` / ``task_kwargs``
+    - ``base-{base}.yaml``: bag-level architecture skeleton, ``clam`` or
+      ``mil``, including the per-task ``task_weights`` / ``task_kwargs``
       for the tasks that base uses. Each base ``extends:
       ../optimizers.yaml`` so the shared optimizer + LR-scheduler recipe
       is pulled in automatically.
@@ -156,7 +156,7 @@ def load_aggregator_config(
       as a shortcut for all four. Each selected partial adds an
       ``output_dims`` entry and a ``task_weights`` entry under the
       corresponding full task name (e.g. ``sbs_regression``). Multiple
-      subtasks stack — DualCLAM grows one extra head per subtask. The
+      subtasks stack, DualCLAM grows one extra head per subtask. The
       input list is alphabetically canonicalized before use, so any
       permutation of the same set yields the same merged config + run
       name. Only valid with CLAM-family bases.
@@ -176,13 +176,13 @@ def load_aggregator_config(
     ``add-on-gated`` flips ``attn_kwargs.gated`` from ``false`` to
     ``true``). After the deep merge, ``params.subtasks`` is overwritten
     with the explicit full-task-name list derived from the requested
-    ``subtasks`` tokens — so requesting ``["sbs", "dbs"]`` yields
+    ``subtasks`` tokens, so requesting ``["sbs", "dbs"]`` yields
     ``params.subtasks = ["sbs_regression", "dbs_regression"]`` regardless
     of how the underlying subtask partials happen to declare the list.
 
     The final ``checkpoint_path`` is set to
     ``checkpoints/{base}[-{subtask}]...-{variant}[-{add_on}]-{encoder}-{pretext}.pth``
-    — the subtask tokens appear in alphabetical order between the base
+    - the subtask tokens appear in alphabetical order between the base
     and the variant. When the full set is selected they collapse to a
     single ``full`` token (so ``--subtask sbs dbs id cnv`` and
     ``--subtask full`` produce the same filename).
@@ -270,7 +270,7 @@ def load_aggregator_config(
         merged = _deep_merge(merged, load_yaml_config(partial_path))
 
     # Authoritative source for ``params.subtasks`` is the CLI/programmatic
-    # ``subtasks`` argument — the per-partial ``subtasks: [...]`` entries
+    # ``subtasks`` argument: the per-partial ``subtasks: [...]`` entries
     # otherwise get clobbered by ``_deep_merge``'s list-replacement
     # semantics when multiple subtask partials stack.
     if subtask_list:
@@ -302,7 +302,7 @@ def load_aggregator_config(
 
 # Map each CLI encoder token to the encoder's Python class name. Used by
 # ``load_dataset_config`` to fill ``params.expected_encoder_name`` when the
-# feature-flavor partial is selected — TCGAFeatureDataset uses this to assert
+# feature-flavor partial is selected: TCGAFeatureDataset uses this to assert
 # the cached features were produced by the expected backbone.
 _DATASET_ENCODER_CLASSES: dict[str, str] = {
     "resnet50": "ResNetEncoder",
@@ -344,7 +344,7 @@ def load_dataset_config(
 
     Two partial axes:
 
-    - ``base-{base}.yaml``: dataset-specific common params — ``root_dir``,
+    - ``base-{base}.yaml``: dataset-specific common params - ``root_dir``,
       tile-extraction params (``tile_size``, ``image_size``, ``base_mpp``,
       ``stride``, ``min_tissue_fraction``, ``thumbnail_max_size``,
       ``white_threshold``), train/val/test fractions, seed, and default
@@ -353,9 +353,9 @@ def load_dataset_config(
     - ``flavor-{flavor}.yaml`` *(optional)*: overlay applied on top of
       the base. Three flavors are supported:
 
-      * ``"slide"`` (default) — no overlay; base is used directly.
+      * ``"slide"`` (default) - no overlay; base is used directly.
         Required args: ``main_task``. Optional: ``subtasks``.
-      * ``"feature"`` — overlay ``flavor-feature.yaml``. Switches the
+      * ``"feature"`` - overlay ``flavor-feature.yaml``. Switches the
         datamodule to ``TCGAFeatureDataset`` and bumps batch sizes /
         worker counts. ``params.features_dir`` is set from
         ``features_dir`` (CLI) or
@@ -364,7 +364,7 @@ def load_dataset_config(
         unread by the feature datamodule. Required args: ``main_task``;
         plus either ``features_dir`` or both ``encoder`` and ``pretext``.
         Optional: ``subtasks``.
-      * ``"tile"`` — overlay ``flavor-tile.yaml``. Switches to
+      * ``"tile"`` - overlay ``flavor-tile.yaml``. Switches to
         ``TCGATileDataset`` for tile-level multi-task pretraining.
         ``params.tasks`` is computed as
         ``["tissue_segmentation", *expanded_pretexts]`` from the
@@ -501,7 +501,7 @@ def load_tile_model_config(
 
     Two partial axes:
 
-    - ``base-{encoder}.yaml``: per-encoder skeleton — declares the
+    - ``base-{encoder}.yaml``: per-encoder skeleton - declares the
       ``params.encoder_config``, the always-on ``tissue_segmentation``
       entry under ``params.decoders_config``, and its
       ``task_weights`` / ``task_kwargs``. Supported encoders:
@@ -598,7 +598,7 @@ def load_trainer_config(
     ``trainer``/``checkpoint``/``logger`` block (plus top-level
     ``seed`` / ``test_after_fit`` / ``enable_lr_monitor``). The run-name
     -derived fields (``checkpoint.filename``, ``logger.name``) are left
-    unset here — the training script fills them from the composed run
+    unset here - the training script fills them from the composed run
     name so a single trainer partial fits every model/dataset
     combination.
 

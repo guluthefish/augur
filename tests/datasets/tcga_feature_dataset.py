@@ -236,7 +236,7 @@ def _test_TCGAFeatureDataset() -> None:
         ), f"Unexpected batch keys: {set(batch.keys())}"
 
         image = batch["image"]
-        # After pad_bag_collate the bag becomes (B, K_max, D) — exactly the
+        # After pad_bag_collate the bag becomes (B, K_max, D) - exactly the
         # shape the aggregator's _encode_bag takes via its `image.ndim == 3`
         # pre-encoded short-circuit.
         assert image.ndim == 3, (
@@ -298,7 +298,7 @@ def _test_encoder_mismatch_rejected() -> None:
     """Declaring a wrong encoder/enc_dim should fail fast at setup."""
     print("Testing TCGAFeatureDataset cache-encoder validation ...")
 
-    # Wrong enc_dim — cache is 2048, declare 1536 (gigapath dim) and expect failure.
+    # Wrong enc_dim - cache is 2048, declare 1536 (gigapath dim) and expect failure.
     datamodule = TCGAFeatureDataset(
         root_dir=_TEST_ROOT_DIR,
         features_dir=_TEST_FEATURES_DIR,
@@ -321,7 +321,7 @@ def _test_encoder_mismatch_rejected() -> None:
     else:
         raise AssertionError("Expected ValueError for declared enc_dim mismatch.")
 
-    # Wrong encoder name — cache is ResNetEncoder, declare ViTEncoder.
+    # Wrong encoder name - cache is ResNetEncoder, declare ViTEncoder.
     datamodule = TCGAFeatureDataset(
         root_dir=_TEST_ROOT_DIR,
         features_dir=_TEST_FEATURES_DIR,
