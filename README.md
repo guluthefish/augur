@@ -1,6 +1,6 @@
-# Augur: Visually Explainable Subtype Classification from Whole Slide Images
+# Augur: Interpretable Breast Cancer Molecular Subtyping from H&E Whole-Slide Images via Attention-Based Multiple-Instance Learning with Auxiliary Mutational-Signature Supervision
 
-This repository contains the code for the paper "Augur: Visually Explainable Subtype Classification from Whole Slide Images". The code is implemented in Python and uses PyTorch Lightning for training and evaluation. The directory is organized as follows:
+This repository contains the code for the paper "Augur: Interpretable Breast Cancer Molecular Subtyping from H&E Whole-Slide Images via Attention-Based Multiple-Instance Learning with Auxiliary Mutational-Signature Supervision". The code is implemented in Python and uses PyTorch Lightning for training and evaluation. The directory is organized as follows:
 
 - `configs/`: Contains the configuration files for dataloader, model training and evaluation.
 - `containers/`: Contains the code to create apptainer images.

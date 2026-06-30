@@ -87,7 +87,16 @@ echo "=== attention heatmaps :: subtask=${SUBTASK} pretext=${PRETEXT} task=${TAS
 echo "    checkpoint : $CKPT"
 echo "    features   : $FEAT_DIR"
 echo "    output     : $OUT_ROOT/<slide_name>/"
-
+# if [ ! -f "$CKPT" ]; then
+#   echo "!! WARNING: expected checkpoint not found: $CKPT" >&2
+#   FOLDS_FOUND="$(ls checkpoints/ 2>/dev/null | grep -E "^clam.*-mb.*-${ENCODER}-${PRETEXT}-fold[0-9]+\.pth$" || true)"
+#   if [ -n "$FOLDS_FOUND" ]; then
+#     echo "   Per-fold checkpoints exist; the Python script expects a non-fold name." >&2
+#     echo "   Symlink/copy one fold, e.g.:" >&2
+#     echo "     ln -s \"$(echo "$FOLDS_FOUND" | head -1)\" \"$CKPT\"" >&2
+#   fi
+#   echo "   Continuing anyway; the Python script will error per slide if it is truly missing." >&2
+# fi
 if [ ! -d "$FEAT_DIR" ]; then
   echo "!! WARNING: feature cache not found: $FEAT_DIR (slides will be encoded live, slowly)." >&2
 fi

@@ -13,7 +13,7 @@ https://github.com/mahmoodlab/CLAM, but multi-branch is anchored on the
 main subtyping task: one attention branch per subtype class, plus one
 extra branch per configured subtask. For example, with 8 subtype
 classes and ``subtasks=["sbs_regression"]`` the MB backbone uses
-``num_heads = 8 + 1 = 9``.
+``num_heads = 5 + 1 = 6``.
 """
 
 from __future__ import annotations
